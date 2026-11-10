@@ -37,18 +37,18 @@ The mode lives in the surface brief, never in PRODUCT.md. One product can hold a
 |---|---|---|---|
 | `init` | foundation | Set up PRODUCT.md (audience, goals, platform, constraints) | reference/init.md |
 | `document` | foundation | Record the existing brand as DESIGN.md (+ design.json sidecar) | reference/document.md |
-| `shape` | plan | Plan a feature's UX — flows and brief, no code | reference/shape.md *(lands M3)* |
+| `shape` | plan | Plan a feature's UX — flows and brief, no code | reference/shape.md |
 | `new-work` | create | Greenfield UI from a rolled direction (worlds deck + contract) | reference/new-work.md *(lands M4)* |
 | `critique` | review | Scored UX review — dual isolated subagents | reference/critique.md |
 | `audit` | review | Technical quality report (a11y/perf/theming/responsive/integrity), no fixes | reference/audit.md |
 | `polish` | refine | Final-pass refinement, never redesign | reference/polish.md |
-| `bolder` | steer | Amplify within identity | reference/bolder.md *(lands M3)* |
-| `quieter` | steer | Reduce intensity without going generic | reference/quieter.md *(lands M3)* |
-| `distill` | steer | Simplify toward one primary goal | reference/distill.md *(lands M3)* |
-| `typeset` | steer | Type system and text craft | reference/typeset.md *(lands M3)* |
-| `layout` | steer | Structure, rhythm, density | reference/layout.md *(lands M3)* |
-| `animate` | steer | Motion with a job | reference/animate.md *(lands M3)* |
-| `operate` | overlay | Work/Read depth rules — auto-loaded with any verb on those modes | reference/operate.md *(lands M3)* |
+| `bolder` | steer | Amplify within identity | reference/bolder.md |
+| `quieter` | steer | Reduce intensity without going generic | reference/quieter.md |
+| `distill` | steer | Simplify toward one primary goal | reference/distill.md |
+| `typeset` | steer | Type system and text craft | reference/typeset.md |
+| `layout` | steer | Structure, rhythm, density | reference/layout.md |
+| `animate` | steer | Motion with a job | reference/animate.md |
+| `operate` | overlay | Work/Read depth rules — auto-loaded with any verb on those modes | reference/operate.md |
 | `doctor` | utility | Project drift report (read-only) | `node scripts/context.mjs --doctor` |
 
 **Before any UI edit, load `reference/craft-floor.md`.** It is the quality floor for everything you build.
