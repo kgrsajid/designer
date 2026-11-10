@@ -38,9 +38,11 @@ const ADVISORY_SEVERITIES = RULESET.severityPolicy.advisory; // polish|informati
 const GATING_SEVERITIES = RULESET.severityPolicy.gating;     // blocker|warning
 const SCAN_EXTS = new Set(['.html', '.htm', '.css', '.scss', '.less', '.vue', '.svelte', '.jsx', '.tsx', '.ts', '.js', '.astro']);
 const MARKUP_EXTS = new Set(['.html', '.htm', '.vue', '.svelte', '.jsx', '.tsx', '.astro']);
-const TEXT_RULE_EXTS = new Set(['.html', '.htm', '.astro']); // full text-content rules
 const CSS_EXTS = new Set(['.css', '.scss', '.less']);
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', '.cache']);
+
+// --scope vocabulary: the two proof scopes + 'all' + every rule category in rules.json.
+const SCOPE_VALUES = ['css', 'html', 'all', ...new Set(RULESET.rules.map((r) => r.category))];
 
 // ---------------------------------------------------------------------------
 // CLI
@@ -53,7 +55,7 @@ function parseArgs(argv) {
     else if (arg === '--list-rules') opts.listRules = true;
     else if (arg.startsWith('--scope=')) {
       const v = arg.slice('--scope='.length);
-      if (!['css', 'html', 'all'].includes(v)) throw new Error(`invalid --scope value "${v}" (css|html|all)`);
+      if (!SCOPE_VALUES.includes(v)) throw new Error(`invalid --scope value "${v}" (${SCOPE_VALUES.join('|')})`);
       opts.scope = v;
     } else if (arg === '--no-advisory') opts.noAdvisory = true;
     else if (arg === '--no-design-system') opts.noDesignSystem = true;
@@ -71,14 +73,17 @@ usage: node detect.mjs [flags] <files-or-dirs...>
 flags:
   --json               machine-readable output to stdout (human text goes to stderr)
   --list-rules         print the rule registry (from data/rules.json) and exit
-  --scope=css|html|all run only rules whose scopes include the given scope (default: all)
+  --scope=<v>          run only matching rules: css|html|all, or a rule category
+                       from data/rules.json (e.g. slop|quality) as a filter
   --no-advisory        suppress advisory rules (polish|informational)
   --no-design-system   disable the design-system drift rules (sidecar-gated)
   --help               this help
 
 inline ignores:
-  CSS:  /* designer-lint-disable rule-id[, rule-id2|*] */ ... /* designer-lint-enable */
-  HTML: <!-- designer-lint-disable rule-id --> ... <!-- designer-lint-enable -->
+  CSS:  /* designer-lint-disable rule-id[, rule-id2|*]: reason */ ... /* designer-lint-enable */
+  HTML: <!-- designer-lint-disable rule-id[, rule-id2|*]: reason --> ... <!-- designer-lint-enable -->
+  The rule list accepts comma/space-separated ids or the '*' wildcard; a trailing
+  ': reason' after the rule list is stripped and echoed in --json activeIgnores.
 
 exit codes: 0 clean · 2 gating findings (blocker|warning) · 1 scan failure`;
 
@@ -242,6 +247,38 @@ function lenToPx(len, basis = 16) {
 
 function nl(s) { let n = 0; for (let i = 0; i < s.length; i++) if (s[i] === '\n') n++; return n; }
 
+/** Precompute newline offsets once per file: offs[k] = start index of line k (0-based). */
+function buildLineIndex(s) {
+  const offs = [0];
+  for (let i = 0; i < s.length; i++) if (s[i] === '\n') offs.push(i + 1);
+  return offs;
+}
+
+/** 1-based line number of `index` via binary search over precomputed offsets (O(log n)). */
+function lineOf(offs, index) {
+  let lo = 0, hi = offs.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >>> 1;
+    if (offs[mid] <= index) lo = mid; else hi = mid - 1;
+  }
+  return lo + 1;
+}
+
+/**
+ * Parse a designer-lint-disable payload: a rule list (comma/space-separated ids,
+ * '*' wildcard allowed) optionally followed by ': reason'. The reason is mandatory
+ * per doctrine, so the parser must accept and echo it — everything after the FIRST
+ * colon is the reason (reasons may contain colons/commas; rule ids never do).
+ */
+function parseIgnorePayload(payload) {
+  const s = String(payload).trim();
+  const colon = s.indexOf(':');
+  const rulePart = colon === -1 ? s : s.slice(0, colon);
+  const reason = colon === -1 ? '' : s.slice(colon + 1).trim();
+  const rules = rulePart.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+  return { rules, reason };
+}
+
 // ---------------------------------------------------------------------------
 // CSS parsing (single pass: comment/ignore scan -> strip -> brace tree -> flatten)
 // ---------------------------------------------------------------------------
@@ -254,8 +291,8 @@ function scanCssIgnores(css, baseLine, regions) {
     const line = baseLine + nl(css.slice(0, m.index));
     let d = inner.match(/^designer-lint-disable\s+([\s\S]+)$/i);
     if (d) {
-      const rules = d[1].split(',').map((x) => x.trim()).filter(Boolean);
-      regions.push({ startLine: line, endLine: null, rules, suppressed: 0, css: true });
+      const { rules, reason } = parseIgnorePayload(d[1]);
+      if (rules.length) regions.push({ startLine: line, endLine: null, rules, reason, suppressed: 0, css: true });
       continue;
     }
     if (/^designer-lint-enable\b/i.test(inner)) {
@@ -310,6 +347,27 @@ function extractFuncArgs(value, name) {
   return inner;
 }
 
+/** Paren-aware extract of EVERY occurrence of a CSS function's inner arguments. */
+function extractAllFuncArgs(value, name) {
+  const out = [];
+  const token = name + '(';
+  let i = value.indexOf(token);
+  while (i !== -1) {
+    const inner = value.slice(i + token.length);
+    let depth = 1, j = 0;
+    while (j < inner.length) {
+      const ch = inner[j];
+      if (ch === '"' || ch === "'") { const s = consumeString(inner, j); j = s.next; continue; }
+      if (ch === '(') depth++;
+      else if (ch === ')') { depth--; if (depth === 0) break; }
+      j++;
+    }
+    out.push(inner.slice(0, j));
+    i = value.indexOf(token, i + token.length + j + 1);
+  }
+  return out;
+}
+
 function splitTopLevel(str, sep = ',') {
   const out = []; let buf = '', depth = 0;
   for (let i = 0; i < str.length; i++) {
@@ -362,7 +420,8 @@ function parseCss(css, baseLine) {
     }
     if (ch === '}') {
       flushDecl();
-      stack.pop();
+      // stray '}' (stack underflow) is noise, not a scan failure: guard the pop
+      if (stack.length > 1) stack.pop();
       buf = ''; segStart = line;
       i++; continue;
     }
@@ -421,21 +480,26 @@ function extractHtml(src) {
   const html = { lang: null, headings: [], imgs: [], marquees: [], classes: [], inlineStyles: [], textChunks: [] };
   const ignores = [];
 
+  // Line numbers: newline offsets precomputed ONCE (binary search per lookup —
+  // the per-match `nl(src.slice(0, i))` was O(n^2) on large HTML).
+  // `cleaned` below is length-preserving with newlines intact, so LINES stays valid for it.
+  const LINES = buildLineIndex(src);
+
   // HTML comment ignores
   const cRe = /<!--\s*designer-lint-(disable|enable)\b([\s\S]*?)-->/g;
   let cm;
   while ((cm = cRe.exec(src))) {
-    const line = 1 + nl(src.slice(0, cm.index));
+    const line = lineOf(LINES, cm.index);
     if (cm[1] === 'disable') {
-      const rules = cm[2].split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
-      ignores.push({ startLine: line, endLine: null, rules, suppressed: 0, css: false });
+      const { rules, reason } = parseIgnorePayload(cm[2]);
+      if (rules.length) ignores.push({ startLine: line, endLine: null, rules, reason, suppressed: 0, css: false });
     } else {
       for (let i = ignores.length - 1; i >= 0; i--) {
         if (ignores[i].endLine === null && !ignores[i].css) { ignores[i].endLine = line; break; }
       }
     }
   }
-  for (const r of ignores) if (r.endLine === null) r.endLine = 1 + nl(src);
+  for (const r of ignores) if (r.endLine === null) r.endLine = lineOf(LINES, src.length);
 
   const langM = src.match(/<html[^>]*\blang\s*=\s*["']?([a-zA-Z-]+)/i);
   if (langM) html.lang = langM[1].toLowerCase();
@@ -445,7 +509,7 @@ function extractHtml(src) {
   const sRe = /<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi;
   let sm;
   while ((sm = sRe.exec(src))) {
-    const baseLine = 1 + nl(src.slice(0, sm.index + sm[0].indexOf('>') + 1));
+    const baseLine = lineOf(LINES, sm.index + sm[0].indexOf('>') + 1);
     styles.push({ css: sm[1], baseLine });
   }
 
@@ -454,20 +518,20 @@ function extractHtml(src) {
   let hm;
   while ((hm = hRe.exec(src))) {
     const text = decodeEntities(hm[2].replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim();
-    html.headings.push({ level: parseInt(hm[1]), text, line: 1 + nl(src.slice(0, hm.index)) });
+    html.headings.push({ level: parseInt(hm[1]), text, line: lineOf(LINES, hm.index) });
   }
 
   // imgs
   const iRe = /<img\b[^>]*>/gi;
   let im;
   while ((im = iRe.exec(src))) {
-    html.imgs.push({ src: attrOf(im[0], 'src'), line: 1 + nl(src.slice(0, im.index)) });
+    html.imgs.push({ src: attrOf(im[0], 'src'), line: lineOf(LINES, im.index) });
   }
 
   // marquee
   const mRe = /<marquee\b[^>]*>/gi;
   let mm;
-  while ((mm = mRe.exec(src))) html.marquees.push(1 + nl(src.slice(0, mm.index)));
+  while ((mm = mRe.exec(src))) html.marquees.push(lineOf(LINES, mm.index));
 
   // tags: classes + inline styles (also used to build text chunks with parent tracking)
   const tagRe = /<\/?\s*([a-zA-Z][a-zA-Z0-9:-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>/g;
@@ -481,9 +545,9 @@ function extractHtml(src) {
     if (!closing) {
       if (!VOID.has(tag)) stack.push(tag);
       const cls = attrOf(tm[0], 'class');
-      if (cls) html.classes.push({ element: tag, classes: cls.split(/\s+/).filter(Boolean), line: 1 + nl(src.slice(0, tm.index)) });
+      if (cls) html.classes.push({ element: tag, classes: cls.split(/\s+/).filter(Boolean), line: lineOf(LINES, tm.index) });
       const style = attrOf(tm[0], 'style');
-      if (style) html.inlineStyles.push({ element: tag, value: style, line: 1 + nl(src.slice(0, tm.index)) });
+      if (style) html.inlineStyles.push({ element: tag, value: style, line: lineOf(LINES, tm.index) });
     } else if (stack.length > 1 && stack[stack.length - 1] === tag) {
       stack.pop();
     }
@@ -508,7 +572,7 @@ function extractHtml(src) {
     const before = cleaned.slice(pos, m.index);
     if (before.trim()) {
       const text = decodeEntities(before).replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, ' ');
-      if (text.trim()) html.textChunks.push({ text: text.trim(), line: 1 + nl(cleaned.slice(0, m.index)), parent, exempt: EXEMPT_TEXT.has(parent) });
+      if (text.trim()) html.textChunks.push({ text: text.trim(), line: lineOf(LINES, m.index), parent, exempt: EXEMPT_TEXT.has(parent) });
     }
     const tag = m[0];
     const nameM = tag.match(/^<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9:-]*)/);
@@ -529,7 +593,7 @@ function extractHtml(src) {
   const tail = cleaned.slice(pos);
   if (tail.trim()) {
     const text = decodeEntities(tail).replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, ' ');
-    if (text.trim()) html.textChunks.push({ text: text.trim(), line: 1 + nl(cleaned.slice(0, pos)), parent });
+    if (text.trim()) html.textChunks.push({ text: text.trim(), line: lineOf(LINES, pos), parent });
   }
 
   return { html, styles, ignores };
@@ -1039,6 +1103,9 @@ CHECKS['theater-slop-phrase'] = (model) => {
 CHECKS['label-line-height'] = (model) => {
   const out = [];
   for (const b of model.blocks) {
+    // source-spec filter: visible label/button-sized text only — headings, captions-as-body and body text are out of scope
+    if (HEADING_SEL_RE.test(b.selector)) continue;
+    if (!FUNCTIONAL_SEL_RE.test(b.selector)) continue;
     const fs = (() => {
       const d = blockDecl(b, 'font-size');
       if (!d || isTokenRef(d.value)) return null;
@@ -1086,7 +1153,7 @@ CHECKS['gpt-thin-border-wide-shadow'] = (model) => {
 CHECKS['all-caps-body'] = (model) => {
   if (!model.html) return [];
   const out = [];
-  const EXEMPT = new Set(['button', 'code', 'pre', 'kbd', 'samp', 'th']);
+  const EXEMPT = new Set(['button', 'label', 'code', 'pre', 'kbd', 'samp', 'th']);
   for (const c of model.html.textChunks) {
     const t = c.text.trim();
     if (t.length < 80) continue;
@@ -1140,7 +1207,7 @@ CHECKS['dark-glow'] = (model) => {
       let items = [];
       if (d.prop === 'box-shadow') items = parseShadowItems(d.value);
       if (d.prop === 'filter') {
-        for (const m of d.value.matchAll(/drop-shadow\(([^)]*)\)/g)) items.push(...parseShadowItems(m[1]));
+        for (const args of extractAllFuncArgs(d.value, 'drop-shadow')) items.push(...parseShadowItems(args));
       }
       for (const it of items) {
         const x = pxOf(it.x, it.xUnit), y = pxOf(it.y, it.yUnit), blur = pxOf(it.blur, it.blurUnit);
@@ -1393,6 +1460,9 @@ CHECKS['text-overflow'] = (model) => {
 };
 
 // design-system family (sidecar-gated)
+// border/outline SHORTHAND values also carry color literals (e.g. `border:1px solid #fa709a`)
+const BORDER_OUTLINE_SHORTHAND_RE = /^(border|outline)(-(top|right|bottom|left|inline|block))?$/;
+
 CHECKS['design-system-font'] = (model) => {
   if (!model.tokens || !model.tokens.fonts.size) return [];
   const out = [];
@@ -1411,7 +1481,8 @@ CHECKS['design-system-color'] = (model) => {
   if (!model.tokens || !model.tokens.colors.size) return [];
   const out = [];
   for (const b of model.blocks) for (const d of b.decls) {
-    if (!COLOR_PROPS.has(d.prop) || d.prop.startsWith('--') || isTokenRef(d.value)) continue;
+    const shorthand = BORDER_OUTLINE_SHORTHAND_RE.test(d.prop);
+    if ((!COLOR_PROPS.has(d.prop) && !shorthand) || d.prop.startsWith('--') || isTokenRef(d.value)) continue;
     if (d.prop === 'background' && d.value.includes('(')) continue; // gradients v2
     for (const c of colorsInValue(d.value)) {
       if (!normColorKey(c)) continue;
@@ -1585,7 +1656,11 @@ CHECKS['aphoristic-cadence'] = (model) => {
 function activeRulesFor(opts) {
   return RULESET.rules.filter((r) => {
     if (r.status !== 'v1-source') return false;
-    if (opts.scope !== 'all' && !r.scopes.includes(opts.scope)) return false;
+    if (opts.scope === 'css' || opts.scope === 'html') {
+      if (!r.scopes.includes(opts.scope)) return false;
+    } else if (opts.scope !== 'all' && r.category !== opts.scope) {
+      return false; // rule-category filter (category names come from rules.json)
+    }
     if (opts.noAdvisory && ADVISORY_SEVERITIES.includes(r.severity)) return false;
     if (opts.noDesignSystem && r.detector?.group === 'design-system') return false;
     return true;
@@ -1634,7 +1709,13 @@ function suppressIgnored(findings, ignores) {
 }
 
 function run(args) {
-  const opts = parseArgs(args);
+  let opts;
+  try {
+    opts = parseArgs(args);
+  } catch (e) {
+    process.stderr.write(`error: ${e.message}\n\n${USAGE}\n`);
+    return 1;
+  }
 
   if (opts.help) {
     process.stdout.write(USAGE + '\n');
@@ -1699,7 +1780,7 @@ function run(args) {
     const kept = suppressIgnored(fileFindings, model.ignores);
     findings.push(...kept);
     for (const ig of model.ignores) {
-      activeIgnores.push({ file, rule: ig.rules.join(','), line: ig.startLine, endLine: ig.endLine === Infinity ? null : ig.endLine, suppressed: ig.suppressed });
+      activeIgnores.push({ file, rule: ig.rules.join(','), reason: ig.reason || '', line: ig.startLine, endLine: ig.endLine === Infinity ? null : ig.endLine, suppressed: ig.suppressed });
     }
   }
 
@@ -1725,7 +1806,7 @@ function run(args) {
       process.stderr.write(`${f.file}:${f.line}  [${f.severity}] ${f.rule} — ${f.message}\n    ${f.evidence}\n`);
     }
     for (const ig of activeIgnores) {
-      process.stderr.write(`${ig.file}:${ig.line}  [ignore] ${ig.rule}${ig.suppressed ? ` (suppressed ${ig.suppressed})` : ''}\n`);
+      process.stderr.write(`${ig.file}:${ig.line}  [ignore] ${ig.rule}${ig.suppressed ? ` (suppressed ${ig.suppressed})` : ''}${ig.reason ? ` — ${ig.reason}` : ''}\n`);
     }
     for (const e of errors) process.stderr.write(`error: ${e}\n`);
     if (!findings.length && !errors.length) process.stderr.write(`designer-detect: clean (${files.length} file${files.length === 1 ? '' : 's'} scanned)\n`);

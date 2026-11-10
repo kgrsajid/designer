@@ -36,7 +36,12 @@
       "html"
     ],
     "css": "Rule is provable from declared CSS (style blocks, stylesheets, inline styles, utility classes).",
-    "html": "Rule is provable from markup/text content (tags, attributes, visible text)."
+    "html": "Rule is provable from markup/text content (tags, attributes, visible text).",
+    "cliScopeFilter": "detect.mjs --scope accepts: 'all' (default), a proof scope ('css'|'html' — rules whose scopes include it run), or a rule-category name from this registry ('slop'|'quality') as a category filter. The accepted vocabulary is derived from this file at runtime, never hard-coded."
+  },
+  "inputs": {
+    "extensions": ".html .htm .css .scss .less .vue .svelte .jsx .tsx .astro .js .ts are accepted scan inputs (directory walks skip node_modules/.git/dist/build/.next/.cache and dot-directories other than .designer).",
+    "jsTs": "Plain .js/.ts inputs are accepted but v1 performs no extraction on them — no JSX className / style-object parsing. Markup-ish scanning (style blocks, class/style attributes, visible text) applies to .html/.htm/.vue/.svelte/.jsx/.tsx/.astro; CSS scanning to .css/.scss/.less and <style> blocks. Known v1 limitation; revisit with the v2 DOM/JSX structure pass."
   },
   "statusSemantics": {
     "v1-source": "Implemented in scripts/detect.mjs (M1). Has a fixture pair.",
@@ -229,7 +234,7 @@
       "description": "The markup jumps heading levels (e.g. h1 followed by h3), breaking the document outline.",
       "message": "Heading level jump",
       "detector": {
-        "mechanical": "In document order of h1-h6 openings, a jump from level L to level M with M > L+1.",
+        "mechanical": "In document order of h1-h6 openings, flags when the running max heading level is skipped: a heading of level M flags when M > L+1, where L is the maximum level seen so far (initially none). The running max never decreases: h1,h2,h4 flags (h2 -> h4); h1,h3,h2 does not re-flag.",
         "fileLevel": false
       }
     },
@@ -414,7 +419,7 @@
       "description": "The file declares visible label/button-sized text (<=13px) with a line-height ratio above 1.7.",
       "message": "Label-sized text with line-height ratio >1.7",
       "detector": {
-        "mechanical": "Same-block declared pair: font-size <=13px AND line-height ratio >1.7 (unitless value, or px line-height / font-size).",
+        "mechanical": "Same-block declared pair, functional-selector filter per the source spec (visible label/button-sized text only): the selector must match /btn|button|label|tag|badge|chip|input|select|hint|meta|caption|tab\\b|menu|nav|link|action/i AND must not match an h1-h6 element selector — headings, captions-as-body, and generic body/paragraph text are out of scope. Within that filter: font-size <=13px AND line-height ratio >1.7 (unitless value, or px line-height / font-size).",
         "thresholds": {
           "fontSizePx": 13,
           "ratio": 1.7
@@ -435,7 +440,7 @@
       "description": "The file styles a row of cards with a 1px hairline border plus a wide diffuse shadow — the 'ghost card' default.",
       "message": "Hairline-border + diffuse-shadow card row",
       "detector": {
-        "mechanical": ">=2 blocks in the file each declaring a border <=1px AND a box-shadow with blur >=12px and |x|,|y| <=16px (a soft elevation shadow, not an offset).",
+        "mechanical": ">=2 blocks in the file each declaring a border <=1px AND a box-shadow with blur >=12px and |x|,|y| <=16px. The <=16px offset envelope is a false-NEGATIVE fix: real ghost cards pair the hairline border with soft near-centered elevation shadows like `0 8px 24px`, which an earlier <=4px cap never matched; the envelope still excludes hard-offset shadows (those belong to hard-offset-shadow).",
         "thresholds": {
           "blocks": 2,
           "borderPx": 1,
@@ -458,7 +463,7 @@
       "description": "A sentence-length run of body text is set fully in uppercase (buttons/kickers and code are exempt).",
       "message": "All-caps sentence-length body text",
       "detector": {
-        "mechanical": "A text chunk of >=80 chars containing >=20 letters and no lowercase letters, not inside button/code/pre/kbd/samp/th.",
+        "mechanical": "A text chunk of >=80 chars containing >=20 letters and no lowercase letters, not inside label/button/code/pre/kbd/samp/th — uppercase labels and buttons are exempt per spec.",
         "thresholds": {
           "chars": 80,
           "letters": 20
@@ -533,7 +538,7 @@
     },
     {
       "id": "dark-glow",
-      "name": "Zero-offset chromatic halo shadow",
+      "name": "Zero-offset chromatic halo (glow decoration)",
       "category": "slop",
       "severity": "blocker",
       "scopes": [
@@ -541,10 +546,12 @@
       ],
       "tier": "immediate",
       "status": "v1-source",
-      "description": "The file declares a zero-offset colored blur (or filter drop-shadow) — glow decoration, not depth. Immediate tier.",
+      "description": "The file declares a zero-offset colored blur (box-shadow or filter drop-shadow) — glow decoration, not depth, on ANY surface. Immediate tier.",
       "message": "Zero-offset chromatic glow shadow",
       "detector": {
-        "mechanical": "box-shadow item (or filter drop-shadow()) with x=0, y=0, blur >=8px, and a shadow color with saturation >=0.35 and lightness 0.25-0.9 (visible chroma). Shadows without an explicit color are skipped (not provable).",
+        "mechanical": "box-shadow item (or filter drop-shadow(), extracted paren-aware so rgba()/hsla() shadow colors parse) with x=0, y=0, blur >=8px, and a shadow color with saturation >=0.35 and lightness 0.25-0.9 (visible chroma). The check is background-agnostic: it never inspects the surface the halo sits on. Shadows without an explicit color are skipped (not provable).",
+        "deviations": "DELIBERATE deviation from the source spec, which qualified the rule as glow 'on dark' backgrounds. Our craft floor bans the zero-offset halo as glow decoration on ANY background — a chromatic halo with no offset is decoration, not depth, and the background does not rehabilitate it. Practically: proving 'on dark' requires surface context the file-proves-only doctrine refuses to resolve (computed/cascaded backgrounds), so the qualifier would make the rule unimplementable in v1 AND weaker than the floor it enforces.",
+        "severityNote": "blocker severity is deliberate: a zero-offset chromatic halo is a flag-untouched-output tell — single-property mechanical slop in the immediate tier, the class the immediate tier exists to gate.",
         "thresholds": {
           "blurPx": 8,
           "saturation": 0.35,
@@ -824,7 +831,7 @@
       "message": "Color literal not in the recorded design tokens",
       "detector": {
         "group": "design-system",
-        "mechanical": "Color literals in properties color, background (solid values only), background-color, border-color and per-side variants, outline-color, fill, stroke, text-decoration-color must match a recorded color token (normalized 6-digit hex). var() refs, gradient stops (v2), and custom-property definitions are exempt.",
+        "mechanical": "Color literals in properties color, background (solid values only), background-color, border-color and per-side variants, outline-color, fill, stroke, text-decoration-color must match a recorded color token (normalized 6-digit hex). Border/outline SHORTHAND values are included: color literals (keywords, hex, rgb()/hsla()) extracted out of border, border-top/right/bottom/left, border-inline, border-block, outline values (e.g. `border:1px solid #fa709a`) are checked the same way. var() refs, gradient stops (v2), and custom-property definitions are exempt.",
         "fileLevel": false
       }
     },

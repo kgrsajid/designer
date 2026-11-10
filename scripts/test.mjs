@@ -11,8 +11,13 @@
  * 2. --json schema check (findings + activeIgnores shape).
  * 3. --list-rules completeness (registry read from rules.json only).
  * 4. Inline-ignore check (oversized-h1 fixture carries a disable region).
+ * 4b. Ignore-with-reason round-trip (documented triage syntax, CSS + HTML).
+ * 4c. CLI robustness: unknown flag / invalid --scope -> clean usage + exit 1;
+ *     rule-category names work as --scope filters.
+ * 4d. Stray '}' in CSS is noise, not a scan failure.
  * 5. Utility-class expansion check (bg-blue-500 passes, bg-[#7c3aed] flags).
  * 6. Perf smoke: ~5000-line synthetic CSS scans in <1s.
+ * 6b. Perf gate: ~200KB synthetic HTML scans in <1s (line lookup must stay O(log n)).
  */
 
 import { spawnSync } from 'node:child_process';
@@ -120,6 +125,80 @@ console.log('\ninline ignores:');
   else ok('ignore stays scoped to its rule');
 }
 
+// 4b. ignore-with-reason round-trip (the documented triage syntax) -------------------
+console.log('\nignore-with-reason round-trip (CSS + HTML):');
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'designer-ig-'));
+
+  // CSS: /* designer-lint-disable overused-font: Inter is the brand font — DESIGN.md Typography */
+  const css = [
+    '/* designer-lint-disable overused-font: Inter is the brand font — DESIGN.md Typography */',
+    '.hero{font-family:Inter,sans-serif}',
+    '/* designer-lint-enable */',
+  ].join('\n');
+  fs.writeFileSync(path.join(tmp, 'a.css'), css);
+  const cr = runDetect(['--json', path.join(tmp, 'a.css')]);
+  const cj = JSON.parse(cr.stdout);
+  const cig = cj.activeIgnores[0];
+  if (!cig || cig.rule !== 'overused-font') bad('css ignore reason', `activeIgnores rule is "${cig?.rule}" — reason not stripped from rule id`);
+  else if (cig.reason !== 'Inter is the brand font — DESIGN.md Typography') bad('css ignore reason', `reason echoed as "${cig.reason}"`);
+  else if (cj.findings.some((f) => f.rule === 'overused-font') || cig.suppressed !== 1) bad('css ignore reason', `suppression broken (suppressed=${cig.suppressed}, findings=${cj.findings.map((f) => f.rule).join(',')})`);
+  else ok('CSS: reason stripped from rule id, echoed, suppression works');
+
+  // HTML: <!-- designer-lint-disable tiny-text: legal smallprint per DESIGN.md -->
+  const html = [
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title></head><body>',
+    '<!-- designer-lint-disable tiny-text, overused-font: deliberate demo pair -->',
+    '<style>.x{font-size:11px;font-family:Inter,sans-serif}</style>',
+    '<!-- designer-lint-enable -->',
+    '</body></html>',
+  ].join('\n');
+  fs.writeFileSync(path.join(tmp, 'b.html'), html);
+  const hr = runDetect(['--json', path.join(tmp, 'b.html')]);
+  const hj = JSON.parse(hr.stdout);
+  const hig = hj.activeIgnores.find((x) => x.rule && x.rule.includes('tiny-text'));
+  if (!hig || hig.rule !== 'tiny-text,overused-font') bad('html ignore list', `activeIgnores rule is "${hig?.rule}" — comma list / reason not parsed`);
+  else if (hig.reason !== 'deliberate demo pair') bad('html ignore list', `reason echoed as "${hig.reason}"`);
+  else if (hig.suppressed !== 2) bad('html ignore list', `expected 2 suppressions, got ${hig.suppressed}`);
+  else ok('HTML: comma-separated list + reason parsed, both rules suppressed');
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+// 4c. CLI robustness ------------------------------------------------------------------
+console.log('\nCLI robustness:');
+{
+  const uf = runDetect(['--frobnicate', 'x.html']);
+  if (uf.status !== 1 || /at \w+ \(/.test(uf.stderr)) bad('unknown flag', `exit ${uf.status}, stack-trace-looking stderr: ${uf.stderr.slice(0, 80)}`);
+  else ok('unknown flag -> clean usage + exit 1');
+
+  const bs = runDetect(['--scope=bogus', 'x.html']);
+  if (bs.status !== 1 || /at \w+ \(/.test(bs.stderr)) bad('invalid scope', `exit ${bs.status}, stderr: ${bs.stderr.slice(0, 80)}`);
+  else ok('invalid --scope -> clean usage + exit 1');
+
+  const cat = runDetect(['--json', '--scope=slop', path.join(SKILL, 'tests', 'fixtures', 'marquee', 'flag.html')]);
+  let catj = null; try { catj = JSON.parse(cat.stdout); } catch {}
+  if (!catj || !catj.findings.some((f) => f.rule === 'marquee')) bad('category scope filter', 'slop category filter dropped the marquee (slop) finding');
+  else {
+    const q = runDetect(['--json', '--scope=quality', path.join(SKILL, 'tests', 'fixtures', 'marquee', 'flag.html')]);
+    const qj = JSON.parse(q.stdout);
+    if (qj.findings.length !== 0) bad('category scope filter', `quality filter still fired: ${qj.findings.map((f) => f.rule).join(',')}`);
+    else ok('category names accepted as --scope filters');
+  }
+}
+
+// 4d. stray-brace resilience ------------------------------------------------------------
+console.log('\nstray-brace resilience:');
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'designer-brace-'));
+  const file = path.join(tmp, 'stray.css');
+  fs.writeFileSync(file, '.a{color:#333}\n}\n.b{padding:6px;background:#eee}\n');
+  const r = runDetect(['--json', file]);
+  let j = null; try { j = JSON.parse(r.stdout); } catch {}
+  if (!j || j.exitCode === 1 || j.errors.length) bad('stray brace', `exit ${j?.exitCode}, errors: ${(j?.errors || []).join('; ')}`);
+  else ok(`stray '}' treated as noise (exit ${j.exitCode}, ${j.findings.length} finding(s))`);
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
 // 5. utility-class expansion --------------------------------------------------------
 console.log('\nutility-class expansion:');
 {
@@ -160,6 +239,27 @@ console.log('\nperf smoke (~5000-line CSS, must scan in <1s):');
   if (![0, 2].includes(r.status)) bad('perf scan', `exit ${r.status}`);
   else if (dt >= 1000) bad('perf smoke', `${lines}-line CSS took ${dt}ms (>= 1s)`);
   else ok(`${lines}-line CSS scanned in ${dt}ms`);
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+// 6b. HTML perf gate (line numbers must be O(log n): ~200KB HTML in <1s) ---------------
+console.log('\nperf gate (~200KB HTML, must scan in <1s):');
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'designer-perf-html-'));
+  const file = path.join(tmp, 'big.html');
+  const parts = ['<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title></head><body>\n<style>\n.base{color:#333;font-size:14px}\n</style>\n'];
+  for (let i = 0; i < 1500; i++) {
+    parts.push(`<div class="row r${i}" style="padding:8px;color:#333"><h2>Section ${i} heading</h2><p class="copy">Body copy for section ${i} with some ordinary words that keep the scanner busy across the whole file.</p><img src="i${i}.png" alt="x"></div>\n`);
+  }
+  parts.push('</body></html>\n');
+  fs.writeFileSync(file, parts.join(''));
+  const bytes = fs.statSync(file).size;
+  const t0 = Date.now();
+  const r = runDetect(['--json', file]);
+  const dt = Date.now() - t0;
+  if (![0, 2].includes(r.status)) bad('perf html scan', `exit ${r.status}: ${r.stderr.slice(0, 120)}`);
+  else if (dt >= 1000) bad('perf gate', `${(bytes / 1024).toFixed(0)}KB HTML took ${dt}ms (>= 1s) — line lookup is quadratic again`);
+  else ok(`${(bytes / 1024).toFixed(0)}KB HTML scanned in ${dt}ms`);
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 

@@ -14,13 +14,14 @@ When the finding is intentional: silence the **smallest scope that expresses the
 /* designer-lint-disable overused-font: Inter is the brand font — DESIGN.md Typography */
 ```
 
-**Inline ignore syntax** — the file's own comment syntax, payload `designer-disable <rule-id>: reason`:
+**Inline ignore syntax** — the file's own comment syntax, payload `designer-lint-disable <rule-id>: reason`:
 
 | File type | Syntax |
 |---|---|
-| CSS/SCSS/JS/TS/TSX/JSX | `/* designer-lint-disable <rule>: reason */` … `/* designer-lint-enable <rule> */` |
-| HTML/Vue/Svelte/Astro | `<!-- designer-lint-disable <rule>: reason -->` … `<!-- designer-lint-enable <rule> -->` |
-| Files with `#` comments | `# designer-lint-disable <rule>: reason` |
+| CSS/SCSS/LESS (and `<style>` blocks in any markup input) | `/* designer-lint-disable <rule>[: reason] */` … `/* designer-lint-enable */` |
+| HTML/Vue/Svelte/Astro/JSX/TSX (HTML comments) | `<!-- designer-lint-disable <rule>[: reason] -->` … `<!-- designer-lint-enable -->` |
+
+The rule list accepts comma/space-separated ids or `*`; a trailing `: reason` is stripped and echoed in `--json` activeIgnores. Plain `.js`/`.ts` inputs and `#`-comment files are not ignore-parsed in v1 (no extraction runs on them); config-file ignores land M2.
 
 Scope hierarchy (narrowest wins): **value-scope < file+rule < file < rule**. Config-file ignores live in `.designer/config.json` (committed) or `.designer/config.local.json` (gitignored) *(mechanism lands M2 — inline ignores are the v1 path)*. Every active ignore is listed in `--json` output — silencing the detector is always visible, never silent.
 
