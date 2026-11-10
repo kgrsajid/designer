@@ -14,7 +14,8 @@ Do these on the rendered result where possible (browser tool), on source where t
 6. **States.** Hover, disabled, loading, error, empty — designed, not defaulted. Keyboard focus visible everywhere focusable.
 7. **Browser surfaces.** Selection color, caret color, scrollbar, focus ring, underline offset, tabular numerals in numeric UI. These are the cheapest proof a page was built, not assembled.
 8. **Copy.** Controls name their action ("Save changes", not "Submit"). Errors name the problem and the recovery. No orphan labels.
-9. **Coverage.** Everything the brief asked for is findable in seconds. Missing requirements are failures, not omissions.
+9. **Controls.** Toggles, checkboxes, radios, segmented controls are brand surface: accent from tokens (never default OS blue), honest state motion (thumb travels, track crossfades — ~100ms, no bounce), custom geometry only where affordance legibility survives. Fancy means *authored* — expression through the identity's own vocabulary, never decoration on a widget.
+10. **Coverage.** Everything the brief asked for is findable in seconds. Missing requirements are failures, not omissions.
 
 ## Refuse list — defaults that need earning
 
