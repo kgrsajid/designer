@@ -17,7 +17,7 @@ Plain markdown. One readable Node script. **No binary. No network. Nothing hidde
 
 ## Status
 
-M1 in progress: detector + core playbooks. See the roadmap in the repo.
+Built in public — **M1–M3 shipped**: the 65-rule zero-dependency detector, the dual-isolated review + trend system, and the full playbook set (only `new-work` + the worlds deck remain, landing as M4). Progress lives in the commit history.
 
 ## Credits
 

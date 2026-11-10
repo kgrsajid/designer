@@ -58,7 +58,7 @@ A report that exists only in chat produced nothing durable; a report that exists
   "mode": "convince",
   "verdict": "<the specificity verdict line>",
   "scores": {
-    "nielsenTotal": 28, "nielsenMax": 40, "renormalized": false,
+    "nielsenTotal": 24, "nielsenMax": 36, "renormalized": true,
     "perHeuristic": { "visibility": 3, "match": 3, "control": 2, "consistency": 3,
       "error": 2, "recognition": 3, "efficiency": 3, "aesthetic": 3,
       "recovery": 2, "help": "n/a" }
