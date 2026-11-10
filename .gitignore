@@ -1,0 +1,5 @@
+node_modules/
+.DS_Store
+*.log
+.designer/config.local.json
+designer-lint-report.json
