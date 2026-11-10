@@ -39,9 +39,9 @@ The mode lives in the surface brief, never in PRODUCT.md. One product can hold a
 | `document` | foundation | Record the existing brand as DESIGN.md (+ design.json sidecar) | reference/document.md |
 | `shape` | plan | Plan a feature's UX — flows and brief, no code | reference/shape.md *(lands M3)* |
 | `new-work` | create | Greenfield UI from a rolled direction (worlds deck + contract) | reference/new-work.md *(lands M4)* |
-| `critique` | review | Scored UX review — dual isolated subagents | reference/critique.md *(lands M2)* |
-| `audit` | review | Technical quality report (a11y/perf/theming/responsive/integrity), no fixes | reference/audit.md *(lands M2)* |
-| `polish` | refine | Final-pass refinement, never redesign | reference/polish.md *(lands M2)* |
+| `critique` | review | Scored UX review — dual isolated subagents | reference/critique.md |
+| `audit` | review | Technical quality report (a11y/perf/theming/responsive/integrity), no fixes | reference/audit.md |
+| `polish` | refine | Final-pass refinement, never redesign | reference/polish.md |
 | `bolder` | steer | Amplify within identity | reference/bolder.md *(lands M3)* |
 | `quieter` | steer | Reduce intensity without going generic | reference/quieter.md *(lands M3)* |
 | `distill` | steer | Simplify toward one primary goal | reference/distill.md *(lands M3)* |
@@ -49,13 +49,13 @@ The mode lives in the surface brief, never in PRODUCT.md. One product can hold a
 | `layout` | steer | Structure, rhythm, density | reference/layout.md *(lands M3)* |
 | `animate` | steer | Motion with a job | reference/animate.md *(lands M3)* |
 | `operate` | overlay | Work/Read depth rules — auto-loaded with any verb on those modes | reference/operate.md *(lands M3)* |
-| `doctor` | utility | Project drift report (read-only) | `node scripts/context.mjs --doctor` *(lands M2)* |
+| `doctor` | utility | Project drift report (read-only) | `node scripts/context.mjs --doctor` |
 
 **Before any UI edit, load `reference/craft-floor.md`.** It is the quality floor for everything you build.
 
 ## Routing
 
-- **No argument** → read `reference/routing.md` and offer a 2–3 pick menu with reasons. Never auto-run a verb. *(routing.md lands M2; until then, ask what the user wants.)*
+- **No argument** → read `reference/routing.md` and offer a 2–3 pick menu with reasons. Never auto-run a verb.
 - **Explicit or clearly implied verb** → load its playbook and work. If two verbs fit, ask once.
 - **Anything else design-related** → treat as general design work under the craft floor.
 - **No PRODUCT.md and the work is a new surface** → run `init` first. Narrow refinements of existing UI proceed on the incumbent brand and offer `init` after.
