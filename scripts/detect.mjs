@@ -5,8 +5,9 @@
  * Zero-dependency Node >= 20. No network, no binary, no telemetry, no shell exec.
  * Single pass per file; a rule fires ONLY on what the file itself proves
  * (no cascade/inheritance resolution, no @import following, no cross-file
- * inference — the only cross-file input is the project design-token sidecar,
- * which gates the design-system rules).
+ * inference — the only cross-file inputs are the project design-token sidecar,
+ * which gates the design-system rules, and the .designer/config*.json ignore
+ * files discovered by walking up to the git root).
  *
  * All rule metadata (ids, severities, scopes, tiers, statuses, thresholds)
  * lives in ../data/rules.json — the single source of truth, read at runtime.
@@ -84,6 +85,24 @@ inline ignores:
   HTML: <!-- designer-lint-disable rule-id[, rule-id2|*]: reason --> ... <!-- designer-lint-enable -->
   The rule list accepts comma/space-separated ids or the '*' wildcard; a trailing
   ': reason' after the rule list is stripped and echoed in --json activeIgnores.
+  Inline regions win inside their span.
+
+config-file ignores (discovered per file by walking up to the git root;
+no git root -> the first .designer hit is the boundary):
+  .designer/config.json        committed (shared)
+  .designer/config.local.json  gitignored; per-key it overrides the committed file
+  keys:
+    ignoreRules   ["rule-id" | {rule, reason}]    suppress rules under that scope
+                 (legacy alias: \`ignores\` / \`detector.ignores\` — same shapes)
+    ignoreFiles   ["vendor/**", "*.min.css"]      skip whole files (still listed)
+    ignoreValues  [{rule, value, reason}]         suppress by evidence substring
+                                                (reason required: a missing reason
+                                                ignores the entry + warns in --json)
+    advisoryRules ["rule-id"]                     demote to advisory: still
+                                                reported, never gates the exit code
+  Every active ignore (inline + config; kind inline|config|config-local|value|file)
+  is listed in --json activeIgnores with source and reason — silencing the
+  detector is never silent.
 
 exit codes: 0 clean · 2 gating findings (blocker|warning) · 1 scan failure`;
 
@@ -716,6 +735,191 @@ function findTokensFor(startDir) {
     dir = parent;
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Config-file ignores (.designer/config.json committed + .designer/config.local.json
+// gitignored, per-key override) — discovered per scanned file by walking up to
+// the git root (no exec: the boundary is the nearest ancestor holding .git);
+// with no git root, the FIRST .designer hit walking up is the boundary.
+// Always-visible law: every applied ignore is echoed in --json activeIgnores
+// with kind (config|config-local|value|file) + source — never silent.
+// ---------------------------------------------------------------------------
+
+const gitRootCache = new Map();
+const designerScopeCache = new Map(); // .designer dir -> parsed scope (per process)
+const reportedCfgIssues = new Set();  // config errors/warnings surface once per scan
+
+function isDir(p) { try { return fs.statSync(p).isDirectory(); } catch { return false; } }
+
+function gitRootFor(startDir) {
+  let dir = path.resolve(startDir);
+  if (gitRootCache.has(dir)) return gitRootCache.get(dir);
+  const from = dir;
+  let root = null;
+  for (;;) {
+    if (fs.existsSync(path.join(dir, '.git'))) { root = dir; break; } // dir OR file (worktrees)
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  gitRootCache.set(from, root);
+  return root;
+}
+
+/** .designer dirs applying to a file: nearest first, up to (incl.) the git root. */
+function configDirsFor(fileDir) {
+  const root = gitRootFor(fileDir);
+  const out = [];
+  let dir = path.resolve(fileDir);
+  for (;;) {
+    const dd = path.join(dir, '.designer');
+    if (isDir(dd)) {
+      out.push(dd);
+      if (!root) break; // no git root: the first .designer hit is the boundary
+    }
+    if (root && dir === root) break;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return out;
+}
+
+/**
+ * Rule-id extraction from a config entry — THE SHAPE CONTRACT with context.mjs's
+ * doctor (`config-ignore-broken` validates exactly these): plain strings
+ * (comma-separated ok) or objects with {rule|ruleId|id|rules}, values string
+ * or array. The detector accepts what doctor accepts.
+ */
+function idsFromConfigEntry(entry) {
+  const ids = [];
+  if (typeof entry === 'string') {
+    for (const s of entry.split(',')) { const t = s.trim(); if (t) ids.push(t); }
+    return ids;
+  }
+  if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+    for (const k of ['rule', 'ruleId', 'id', 'rules']) {
+      const v = entry[k];
+      if (typeof v === 'string') for (const s of v.split(',')) { const t = s.trim(); if (t) ids.push(t); }
+      else if (Array.isArray(v)) for (const s of v) if (typeof s === 'string' && s.trim()) ids.push(s.trim());
+    }
+  }
+  return ids;
+}
+
+function entryReason(entry) {
+  return entry && typeof entry === 'object' && !Array.isArray(entry) && typeof entry.reason === 'string' ? entry.reason.trim() : '';
+}
+
+/** Glob-ish matching: `**` crosses `/`, `*` stays within one segment. */
+const globCache = new Map();
+function globMatch(pattern, relPath) {
+  let re = globCache.get(pattern);
+  if (!re) {
+    let src = '';
+    for (let i = 0; i < pattern.length; i++) {
+      const ch = pattern[i];
+      if (ch === '*') {
+        if (pattern[i + 1] === '*') {
+          if (pattern[i + 2] === '/') { src += '(?:[\\s\\S]*\\/)?'; i += 2; }
+          else { src += '[\\s\\S]*'; i += 1; }
+        } else src += '[^/]*';
+      } else src += ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    re = new RegExp(`^${src}$`);
+    globCache.set(pattern, re);
+  }
+  return re.test(relPath.split('/').pop()) || re.test(relPath);
+}
+
+const CONFIG_KEYS = ['ignoreRules', 'ignoreFiles', 'ignoreValues', 'advisoryRules'];
+
+/**
+ * Load + merge one .designer dir's config files. Per-key: config.local.json
+ * REPLACES the committed value when the key is present (never element-wise
+ * merge). Malformed files become issues (error for JSON syntax, warning for
+ * rule violations like a reason-less ignoreValues entry) — never a crash.
+ */
+function loadConfigScope(designerDir) {
+  if (designerScopeCache.has(designerDir)) return designerScopeCache.get(designerDir);
+  const scope = { ruleIgnores: [], fileIgnores: [], valueIgnores: [], advisoryRules: [], issues: [] };
+  const loaded = {}; // key -> {value, kind, source} (local wins per key)
+  for (const f of [{ name: 'config.json', kind: 'config' }, { name: 'config.local.json', kind: 'config-local' }]) {
+    const p = path.join(designerDir, f.name);
+    if (!fs.existsSync(p)) continue;
+    let val;
+    try {
+      val = JSON.parse(fs.readFileSync(p, 'utf8'));
+    } catch (e) {
+      scope.issues.push({ type: 'error', message: `${p}: invalid JSON (${e.message}) — config ignores from this file are skipped` });
+      continue;
+    }
+    if (!val || typeof val !== 'object' || Array.isArray(val)) {
+      scope.issues.push({ type: 'error', message: `${p}: config root must be a JSON object — config ignores from this file are skipped` });
+      continue;
+    }
+    for (const key of CONFIG_KEYS) if (key in val) loaded[key] = { value: val[key], kind: f.kind, source: p };
+    // legacy alias: context.mjs doctor's config-ignore-broken validates `ignores`
+    // / `detector.ignores` — the detector honors exactly that shape too.
+    const alias = val.ignores ?? val.detector?.ignores;
+    if (alias !== undefined && !('ignoreRules' in val)) loaded.ignoreRules = { value: alias, kind: f.kind, source: p };
+  }
+  const arr = (v) => (Array.isArray(v) ? v : []);
+
+  if (loaded.ignoreRules) {
+    const { kind, source } = loaded.ignoreRules;
+    for (const e of arr(loaded.ignoreRules.value)) {
+      for (const id of idsFromConfigEntry(e)) scope.ruleIgnores.push({ rule: id, reason: entryReason(e), kind, source });
+    }
+  }
+  if (loaded.ignoreFiles) {
+    const { kind, source } = loaded.ignoreFiles;
+    for (const e of arr(loaded.ignoreFiles.value)) {
+      const pats = [];
+      if (typeof e === 'string') { if (e.trim()) pats.push(e.trim()); }
+      else if (e && typeof e === 'object' && !Array.isArray(e)) {
+        for (const k of ['file', 'pattern', 'files', 'path']) {
+          const v = e[k];
+          if (typeof v === 'string' && v.trim()) pats.push(v.trim());
+          else if (Array.isArray(v)) for (const s of v) if (typeof s === 'string' && s.trim()) pats.push(s.trim());
+        }
+      }
+      for (const pattern of pats) scope.fileIgnores.push({ pattern, reason: entryReason(e), kind, source });
+    }
+  }
+  if (loaded.ignoreValues) {
+    const { source } = loaded.ignoreValues;
+    for (const e of arr(loaded.ignoreValues.value)) {
+      const kind = 'value'; // kind per the activeIgnores enum; source names the file
+      if (!e || typeof e !== 'object' || Array.isArray(e)) {
+        scope.issues.push({ type: 'warning', message: `${source}: ignoreValues entries must be objects {rule, value, reason} — entry skipped` });
+        continue;
+      }
+      const ids = idsFromConfigEntry(e);
+      const value = typeof e.value === 'string' ? e.value.trim() : '';
+      const reason = entryReason(e);
+      if (!ids.length || !value) {
+        scope.issues.push({ type: 'warning', message: `${source}: ignoreValues entry needs both a rule and a value — entry skipped` });
+        continue;
+      }
+      if (!reason) {
+        // reason is REQUIRED for value-scoped suppression: without one the entry
+        // is ignored and surfaced as a warning — never a silent value ignore
+        scope.issues.push({ type: 'warning', message: `${source}: ignoreValues entry for "${ids[0]}" (value "${value}") is missing its required reason — entry ignored` });
+        continue;
+      }
+      for (const id of ids) scope.valueIgnores.push({ rule: id, value, reason, kind, source });
+    }
+  }
+  if (loaded.advisoryRules) {
+    const { kind, source } = loaded.advisoryRules;
+    for (const e of arr(loaded.advisoryRules.value)) {
+      for (const id of idsFromConfigEntry(e)) scope.advisoryRules.push({ rule: id, reason: entryReason(e), kind, source });
+    }
+  }
+  designerScopeCache.set(designerDir, scope);
+  return scope;
 }
 
 // ---------------------------------------------------------------------------
@@ -1747,12 +1951,42 @@ function run(args) {
   }
 
   const errors = [];
+  const warnings = [];
   const files = collectFiles(opts.files, errors);
   const rules = activeRulesFor(opts);
   const findings = [];
   const activeIgnores = [];
+  let scannedCount = 0;
 
   for (const file of files) {
+    // config scopes for this file (.designer dirs, nearest first)
+    const fileAbs = path.resolve(file);
+    const scopes = configDirsFor(path.dirname(fileAbs)).map((d) => ({ base: path.dirname(d), scope: loadConfigScope(d) }));
+    for (const { scope } of scopes) {
+      for (const iss of scope.issues) {
+        if (reportedCfgIssues.has(iss.message)) continue;
+        reportedCfgIssues.add(iss.message);
+        if (iss.type === 'error') errors.push(iss.message);
+        else warnings.push(iss.message);
+      }
+    }
+
+    // ignoreFiles: first matching pattern (nearest scope first) skips the file
+    // entirely — skipped files are listed as kind "file" ignores, never invisible
+    let skip = null;
+    for (const { base, scope } of scopes) {
+      for (const fi of scope.fileIgnores) {
+        const rel = path.relative(base, fileAbs).split(path.sep).join('/');
+        if (globMatch(fi.pattern, rel)) { skip = fi; break; }
+      }
+      if (skip) break;
+    }
+    if (skip) {
+      activeIgnores.push({ file, kind: 'file', source: skip.source, rule: skip.pattern, reason: skip.reason });
+      continue;
+    }
+    scannedCount++;
+
     let model;
     try {
       model = buildModel(file);
@@ -1777,16 +2011,55 @@ function run(args) {
         });
       }
     }
-    const kept = suppressIgnored(fileFindings, model.ignores);
-    findings.push(...kept);
-    for (const ig of model.ignores) {
-      activeIgnores.push({ file, rule: ig.rules.join(','), reason: ig.reason || '', line: ig.startLine, endLine: ig.endLine === Infinity ? null : ig.endLine, suppressed: ig.suppressed });
+
+    // suppression ladder: inline regions win inside their span, then config
+    // rule ignores, then value-scoped ignores — a finding is attributed to the
+    // first mechanism that catches it (never double-counted)
+    let kept = suppressIgnored(fileFindings, model.ignores);
+    const ruleIgnores = scopes.flatMap(({ scope }) => scope.ruleIgnores.map((ri) => ({ ...ri, suppressed: 0 })));
+    if (ruleIgnores.length) {
+      const rest = [];
+      for (const f of kept) {
+        const hit = ruleIgnores.find((ri) => ri.rule === f.rule || ri.rule === '*');
+        if (hit) hit.suppressed++;
+        else rest.push(f);
+      }
+      kept = rest;
     }
+    const valueIgnores = scopes.flatMap(({ scope }) => scope.valueIgnores.map((vi) => ({ ...vi, suppressed: 0 })));
+    if (valueIgnores.length) {
+      const rest = [];
+      for (const f of kept) {
+        const hit = valueIgnores.find((vi) => vi.rule === f.rule && ((f.evidence && f.evidence.includes(vi.value)) || (f.message && f.message.includes(vi.value))));
+        if (hit) hit.suppressed++;
+        else rest.push(f);
+      }
+      kept = rest;
+    }
+    // advisory demotion never hides: findings stay in the report, flagged
+    // demoted; they stop gating the exit code
+    const advisoryDemotions = scopes.flatMap(({ scope }) => scope.advisoryRules.map((a) => ({ ...a, demoted: 0 })));
+    if (advisoryDemotions.length) {
+      for (const f of kept) {
+        if (!GATING_SEVERITIES.includes(f.severity)) continue;
+        const hit = advisoryDemotions.find((a) => a.rule === f.rule);
+        if (hit) { f.demoted = true; hit.demoted++; }
+      }
+    }
+    findings.push(...kept);
+
+    for (const ig of model.ignores) {
+      activeIgnores.push({ file, kind: 'inline', rule: ig.rules.join(','), reason: ig.reason || '', line: ig.startLine, endLine: ig.endLine === Infinity ? null : ig.endLine, suppressed: ig.suppressed });
+    }
+    for (const ri of ruleIgnores) activeIgnores.push({ file, kind: ri.kind, source: ri.source, rule: ri.rule, reason: ri.reason, suppressed: ri.suppressed });
+    for (const vi of valueIgnores) activeIgnores.push({ file, kind: 'value', source: vi.source, rule: vi.rule, value: vi.value, reason: vi.reason, suppressed: vi.suppressed });
+    for (const a of advisoryDemotions) activeIgnores.push({ file, kind: a.kind, source: a.source, rule: a.rule, reason: a.reason, advisory: true, demoted: a.demoted });
   }
 
   const counts = { blocker: 0, warning: 0, polish: 0, informational: 0 };
   for (const f of findings) counts[f.severity]++;
-  const gating = counts.blocker + counts.warning;
+  const demoted = findings.filter((f) => f.demoted).length;
+  const gating = findings.filter((f) => !f.demoted && GATING_SEVERITIES.includes(f.severity)).length;
   const exitCode = errors.length ? 1 : gating > 0 ? 2 : 0;
 
   if (opts.json) {
@@ -1794,23 +2067,36 @@ function run(args) {
       tool: RULESET.tool,
       rulesetVersion: RULESET.version,
       files: files,
-      scanned: files.length,
+      scanned: scannedCount,
       findings,
-      counts: { ...counts, total: findings.length, gating },
+      counts: { ...counts, total: findings.length, gating, demoted },
       activeIgnores,
+      warnings,
       errors,
       exitCode,
     }, null, 2) + '\n');
+    // scan-health lines stay on stderr even in --json mode — stdout stays pure JSON
+    for (const e of errors) process.stderr.write(`error: ${e}\n`);
+    for (const w of warnings) process.stderr.write(`warning: ${w}\n`);
   } else {
     for (const f of findings) {
       process.stderr.write(`${f.file}:${f.line}  [${f.severity}] ${f.rule} — ${f.message}\n    ${f.evidence}\n`);
     }
     for (const ig of activeIgnores) {
-      process.stderr.write(`${ig.file}:${ig.line}  [ignore] ${ig.rule}${ig.suppressed ? ` (suppressed ${ig.suppressed})` : ''}${ig.reason ? ` — ${ig.reason}` : ''}\n`);
+      const where = ig.line ? `${ig.file}:${ig.line}` : ig.file;
+      const kind = ig.kind === 'inline' ? '' : `(${ig.kind}${ig.advisory ? ':advisory' : ''}) `;
+      process.stderr.write(`${where}  [ignore] ${kind}${ig.rule}${ig.suppressed ? ` (suppressed ${ig.suppressed})` : ''}${ig.demoted ? ` (demoted ${ig.demoted})` : ''}${ig.reason ? ` — ${ig.reason}` : ''}\n`);
     }
+    for (const w of warnings) process.stderr.write(`warning: ${w}\n`);
     for (const e of errors) process.stderr.write(`error: ${e}\n`);
-    if (!findings.length && !errors.length) process.stderr.write(`designer-detect: clean (${files.length} file${files.length === 1 ? '' : 's'} scanned)\n`);
-    else process.stderr.write(`designer-detect: ${findings.length} finding(s) (${counts.blocker} blocker, ${counts.warning} warning, ${counts.polish} polish, ${counts.informational} informational) in ${files.length} file(s)\n`);
+    if (activeIgnores.length) {
+      const byKind = {};
+      for (const ig of activeIgnores) byKind[ig.kind] = (byKind[ig.kind] ?? 0) + 1;
+      const supTotal = activeIgnores.reduce((n, ig) => n + (ig.suppressed ?? 0), 0);
+      process.stderr.write(`ignores: ${activeIgnores.length} active (${Object.entries(byKind).map(([k, v]) => `${k} ${v}`).join(', ')}) — ${supTotal} finding(s) suppressed${demoted ? `, ${demoted} demoted to advisory` : ''}\n`);
+    }
+    if (!findings.length && !errors.length) process.stderr.write(`designer-detect: clean (${scannedCount} file${scannedCount === 1 ? '' : 's'} scanned)\n`);
+    else process.stderr.write(`designer-detect: ${findings.length} finding(s) (${counts.blocker} blocker, ${counts.warning} warning, ${counts.polish} polish, ${counts.informational} informational) in ${scannedCount} file(s)\n`);
   }
   return exitCode;
 }

@@ -263,6 +263,166 @@ console.log('\nperf gate (~200KB HTML, must scan in <1s):');
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 
+// 7. config-file ignores --------------------------------------------------------------
+console.log('\nconfig-file ignores (.designer/config.json + config.local.json):');
+{
+  const mk = (dir, rel, content) => { const p = path.join(dir, rel); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, content); };
+  const writeJson = (dir, rel, v) => mk(dir, rel, typeof v === 'string' ? v : JSON.stringify(v, null, 2));
+
+  // 7a. all four keys + per-key local override + value-scope precision (no git repo:
+  //     the first .designer hit walking up is the discovery boundary)
+  {
+    const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'designer-cfg-'));
+    writeJson(proj, '.designer/config.json', {
+      version: 1,
+      ignoreRules: ['cream-palette'],
+      ignoreFiles: ['skipped.html'],
+      ignoreValues: [{ rule: 'tiny-text', value: '10px', reason: 'legal smallprint per DESIGN.md' }],
+      advisoryRules: [{ ruleId: 'extreme-negative-tracking', reason: 'display face tracks tight on purpose' }],
+    });
+    writeJson(proj, '.designer/config.local.json', {
+      ignoreRules: [{ rule: 'overused-font', reason: 'Inter is the brand font — DESIGN.md Typography' }],
+    });
+    mk(proj, 'a.html', [
+      '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title></head><body><style>',
+      '.legal{font-size:10px}',
+      '.body{font-size:11px}',
+      '.hero{font-family:Inter,sans-serif}',
+      '.paper{background:#f5eeda}',
+      '.tight{letter-spacing:-0.08em}',
+      '</style></body></html>',
+    ].join('\n'));
+    mk(proj, 'skipped.html', '<!doctype html><html><style>.x{font-size:9px}</style></html>');
+
+    const j = JSON.parse(runDetect(['--json', path.join(proj, 'a.html'), path.join(proj, 'skipped.html')]).stdout);
+    const has = (rule) => j.findings.some((f) => f.rule === rule);
+
+    const localIg = j.activeIgnores.find((x) => x.kind === 'config-local' && x.rule === 'overused-font');
+    if (!localIg || localIg.suppressed !== 1 || !localIg.source.endsWith('config.local.json') || localIg.reason !== 'Inter is the brand font — DESIGN.md Typography') bad('config local override', JSON.stringify(localIg));
+    else if (has('overused-font') || !has('cream-palette') || j.activeIgnores.some((x) => x.rule === 'cream-palette')) bad('config local override', `overused fired=${has('overused-font')}, cream fired=${has('cream-palette')}, cream listed=${j.activeIgnores.some((x) => x.rule === 'cream-palette')}`);
+    else ok('config.local per-key override: local suppresses, committed entry replaced');
+
+    const valIg = j.activeIgnores.find((x) => x.kind === 'value' && x.rule === 'tiny-text');
+    const keptTiny = j.findings.find((f) => f.rule === 'tiny-text');
+    if (!valIg || valIg.suppressed !== 1 || valIg.value !== '10px' || !valIg.source.endsWith('config.json') || valIg.reason !== 'legal smallprint per DESIGN.md') bad('value ignore', JSON.stringify(valIg));
+    else if (!keptTiny || !keptTiny.evidence.includes('11px') || j.findings.filter((f) => f.rule === 'tiny-text').length !== 1) bad('value ignore', `11px finding not the sole survivor: ${JSON.stringify(j.findings.map((f) => f.rule + '@' + f.line))}`);
+    else ok('ignoreValues: evidence substring matched (10px gone), 11px survivor kept (no over-suppress)');
+
+    const dem = j.findings.find((f) => f.rule === 'extreme-negative-tracking');
+    const advIg = j.activeIgnores.find((x) => x.advisory === true && x.rule === 'extreme-negative-tracking');
+    if (!dem || dem.demoted !== true || !advIg || advIg.demoted !== 1 || advIg.kind !== 'config' || !advIg.source.endsWith('config.json')) bad('advisory demotion listed', `${JSON.stringify(dem)} / ${JSON.stringify(advIg)}`);
+    else ok('advisoryRules (object shape): finding reported + demoted flag + advisory ignore listed');
+
+    const fileIg = j.activeIgnores.find((x) => x.kind === 'file');
+    if (!fileIg || fileIg.rule !== 'skipped.html' || !fileIg.file.endsWith('skipped.html') || !fileIg.source.endsWith('config.json')) bad('ignoreFiles skip listed', JSON.stringify(fileIg));
+    else ok('ignoreFiles: skipped file listed as kind "file" (never invisible)');
+
+    if (j.exitCode !== 2 || j.counts.gating !== 2 || j.counts.demoted !== 1 || j.scanned !== 1) bad('config exit math', `exit ${j.exitCode} gating ${j.counts.gating} demoted ${j.counts.demoted} scanned ${j.scanned}`);
+    else ok('exit/gating math with a demoted advisory (2 gating, 1 demoted, 1 file scanned of 2)');
+
+    const h = runDetect([path.join(proj, 'a.html'), path.join(proj, 'skipped.html')]);
+    if (h.status !== 2 || !/ignores: \d+ active/.test(h.stderr)) bad('human ignore summary', `exit ${h.status}, stderr tail: ${h.stderr.slice(-160)}`);
+    else ok('human output echoes the ignore summary counts');
+
+    fs.rmSync(proj, { recursive: true, force: true });
+  }
+
+  // 7b. advisoryRules flip exit 2 -> 0 while still reporting
+  {
+    const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'designer-cfg-adv-'));
+    writeJson(proj, '.designer/config.json', { advisoryRules: ['tiny-text'] });
+    mk(proj, 'a.css', '.x{font-size:10px}\n');
+    const j = JSON.parse(runDetect(['--json', path.join(proj, 'a.css')]).stdout);
+    if (j.exitCode !== 0 || j.findings.length !== 1 || j.findings[0].rule !== 'tiny-text' || j.findings[0].demoted !== true || j.counts.gating !== 0) bad('advisory exit flip', JSON.stringify({ exit: j.exitCode, findings: j.findings.map((f) => f.rule), counts: j.counts }));
+    else ok('advisoryRules flips a blocker exit 2 → 0, finding still reported');
+    fs.rmSync(proj, { recursive: true, force: true });
+  }
+
+  // 7c. inline wins inside its region (attribution: the inline region counts its own finding)
+  {
+    const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'designer-cfg-inline-'));
+    writeJson(proj, '.designer/config.json', { ignoreRules: ['tiny-text'] });
+    mk(proj, 'a.html', [
+      '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title></head><body><style>',
+      '/* designer-lint-disable tiny-text: legal line */',
+      '.a{font-size:10px}',
+      '/* designer-lint-enable */',
+      '.b{font-size:10.5px}',
+      '</style></body></html>',
+    ].join('\n'));
+    const j = JSON.parse(runDetect(['--json', path.join(proj, 'a.html')]).stdout);
+    const inl = j.activeIgnores.find((x) => x.kind === 'inline' && x.rule === 'tiny-text');
+    const cfg = j.activeIgnores.find((x) => x.kind === 'config' && x.rule === 'tiny-text');
+    if (j.exitCode !== 0 || j.findings.length !== 0 || !inl || inl.suppressed !== 1 || !cfg || cfg.suppressed !== 1) bad('inline precedence', JSON.stringify({ exit: j.exitCode, findings: j.findings.length, inl, cfg }));
+    else ok('inline region wins its span; the config ignore takes only the rest');
+    fs.rmSync(proj, { recursive: true, force: true });
+  }
+
+  // 7d. malformed config: error entry + stderr line + scan continues (local file still honored)
+  {
+    const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'designer-cfg-bad-'));
+    mk(proj, '.designer/config.json', '{ this is not json');
+    writeJson(proj, '.designer/config.local.json', { ignoreRules: ['tiny-text'] });
+    mk(proj, 'a.css', '.x{font-size:10px}\n.over{font-family:Inter,sans-serif}\n');
+    const r = runDetect(['--json', path.join(proj, 'a.css')]);
+    const j = JSON.parse(r.stdout);
+    if (!j.errors.some((e) => e.includes('config.json') && e.includes('invalid JSON'))) bad('malformed config', `errors: ${JSON.stringify(j.errors)}`);
+    else if (j.findings.length !== 1 || !j.findings.some((f) => f.rule === 'overused-font') || j.findings.some((f) => f.rule === 'tiny-text')) bad('malformed config', `scan did not continue sanely: ${JSON.stringify(j.findings.map((f) => f.rule))}`);
+    else if (j.exitCode !== 1) bad('malformed config', `exit ${j.exitCode}, expected 1`);
+    else if (!r.stderr.includes('error:')) bad('malformed config', 'no stderr line in --json mode');
+    else ok('malformed config.json → error entry + stderr line, scan continues, config.local honored');
+    fs.rmSync(proj, { recursive: true, force: true });
+  }
+
+  // 7e. shape tolerance (string | {rule} | {ruleId} | {id} | {rules}) + legacy `ignores` alias
+  {
+    const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'designer-cfg-shape-'));
+    writeJson(proj, '.designer/config.json', {
+      ignores: [
+        'overused-font',
+        { ruleId: 'wide-tracking' },
+        { id: 'cream-palette', reason: 'brand paper tone' },
+        { rules: ['extreme-negative-tracking', 'repeating-stripes-gradient'] },
+      ],
+    });
+    mk(proj, 'a.html', [
+      '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title></head><body><style>',
+      '.a{font-family:Inter,sans-serif}',
+      '.b{letter-spacing:0.1em}',
+      '.c{background:#f5eeda}',
+      '.d{letter-spacing:-0.08em}',
+      '.e{background-image:repeating-linear-gradient(45deg,#fff,#fff 10px,#000 10px,#000 20px)}',
+      '</style></body></html>',
+    ].join('\n'));
+    const j = JSON.parse(runDetect(['--json', path.join(proj, 'a.html')]).stdout);
+    const ids = ['overused-font', 'wide-tracking', 'cream-palette', 'extreme-negative-tracking', 'repeating-stripes-gradient'];
+    const listed = ids.filter((id) => j.activeIgnores.some((x) => x.kind === 'config' && x.rule === id));
+    if (j.findings.length !== 0 || j.exitCode !== 0) bad('shape tolerance', `findings: ${j.findings.map((f) => f.rule).join(',')} exit ${j.exitCode}`);
+    else if (listed.length !== ids.length) bad('shape tolerance', `only [${listed.join(',')}] listed`);
+    else ok('all entry shapes + legacy `ignores` alias accepted, each listed in activeIgnores');
+    fs.rmSync(proj, { recursive: true, force: true });
+  }
+
+  // 7f. git-root discovery boundary (needs git on PATH; skipped otherwise)
+  if (spawnSync('git', ['--version']).status === 0) {
+    const outer = fs.mkdtempSync(path.join(os.tmpdir(), 'designer-cfg-git-'));
+    writeJson(outer, '.designer/config.json', { ignoreRules: ['overused-font'] });
+    const repo = path.join(outer, 'repo');
+    fs.mkdirSync(repo);
+    spawnSync('git', ['init', '-q', repo]);
+    mk(repo, 'a.html', '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title></head><body><style>.a{font-family:Inter,sans-serif}</style></body></html>');
+    const withGit = JSON.parse(runDetect(['--json', path.join(repo, 'a.html')]).stdout);
+    const fired = withGit.findings.some((f) => f.rule === 'overused-font');
+    fs.rmSync(path.join(repo, '.git'), { recursive: true, force: true }); // control: same tree, no git root
+    const noGit = JSON.parse(runDetect(['--json', path.join(repo, 'a.html')]).stdout);
+    if (fired !== true || noGit.findings.some((f) => f.rule === 'overused-font')) bad('git-root boundary', `with .git fired=${fired}; without .git suppressed=${!noGit.findings.some((f) => f.rule === 'overused-font')}`);
+    else ok('config discovery stops at the git root (visible again without .git)');
+    fs.rmSync(outer, { recursive: true, force: true });
+  } else {
+    console.log('  skip git-root boundary section (git not on PATH)');
+  }
+}
+
 // ---------------------------------------------------------------------------
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failures.length) {

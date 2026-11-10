@@ -8,7 +8,7 @@ The default. The finding is real and the fix belongs in this change. Fix at the 
 
 ## 2. Narrowest ignore, with named evidence
 
-When the finding is intentional: silence the **smallest scope that expresses the intent**, and say why. Prefer value-scoped ignores over rule-scoped — they keep the rule armed *(the value-scope mechanism lands M2; until then file+rule is the narrowest available)*. Until then, narrow to the file+rule with a reason the rule can't argue with:
+When the finding is intentional: silence the **smallest scope that expresses the intent**, and say why. Prefer value-scoped ignores over rule-scoped — they keep the rule armed (`ignoreValues` in `.designer/config.json`: one rule, one evidence substring, one mandatory reason). Otherwise narrow to the file+rule with a reason the rule can't argue with:
 
 ```
 /* designer-lint-disable overused-font: Inter is the brand font — DESIGN.md Typography */
@@ -21,9 +21,9 @@ When the finding is intentional: silence the **smallest scope that expresses the
 | CSS/SCSS/LESS (and `<style>` blocks in any markup input) | `/* designer-lint-disable <rule>[: reason] */` … `/* designer-lint-enable */` |
 | HTML/Vue/Svelte/Astro/JSX/TSX (HTML comments) | `<!-- designer-lint-disable <rule>[: reason] -->` … `<!-- designer-lint-enable -->` |
 
-The rule list accepts comma/space-separated ids or `*`; a trailing `: reason` is stripped and echoed in `--json` activeIgnores. Plain `.js`/`.ts` inputs and `#`-comment files are not ignore-parsed in v1 (no extraction runs on them); config-file ignores land M2.
+The rule list accepts comma/space-separated ids or `*`; a trailing `: reason` is stripped and echoed in `--json` activeIgnores. Plain `.js`/`.ts` inputs and `#`-comment files are not ignore-parsed in v1 (no extraction runs on them). Config-file ignores are live: `.designer/config.json` (committed) and `.designer/config.local.json` (gitignored, wins per-key), discovered by walking up to the git root, with keys `ignoreRules`, `ignoreFiles` (whole-file skip, still listed), `ignoreValues` (reason mandatory), and `advisoryRules` (demote to advisory — still reported, never gating).
 
-Scope hierarchy (narrowest wins): **value-scope < file+rule < file < rule**. Config-file ignores live in `.designer/config.json` (committed) or `.designer/config.local.json` (gitignored) *(mechanism lands M2 — inline ignores are the v1 path)*. Every active ignore is listed in `--json` output — silencing the detector is always visible, never silent.
+Scope hierarchy (narrowest wins): **value-scope < file+rule < file < rule**. Config-file ignores live in `.designer/config.json` (committed) or `.designer/config.local.json` (gitignored, wins per-key): `ignoreValues` is the value-scope tier, `ignoreRules` the file+rule tier, `ignoreFiles` the file tier. Every active ignore is listed in `--json` output (`activeIgnores`, kind `inline|config|config-local|value|file`, each with source and reason) — silencing the detector is always visible, never silent.
 
 The reason is mandatory. An ignore without a named reason is a bug.
 

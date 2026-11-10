@@ -86,6 +86,19 @@
     "Custom-property definitions (properties starting with --) are token sources and are exempt from design-system rules.",
     "Utility classes that expand via data/utility-classes.json (e.g. Tailwind bg-blue-500 -> {color.blue.500}) resolve to token-ish references and pass. Only arbitrary-value utilities (bg-[#7c3aed]) carry literals into checking."
   ],
+  "configIgnores": {
+    "note": "Config-file ignores: .designer/config.json (committed) + .designer/config.local.json (gitignored; per-key the local file overrides the committed one), discovered per scanned file by walking up to the git root (first .designer hit when there is no git root). Multiple .designer scopes along the walk all apply (nearest first). Every active ignore is echoed in detect.mjs --json activeIgnores with kind (config|config-local|value|file) + source — silencing the detector is never silent.",
+    "keys": [
+      "ignoreRules",
+      "ignoreFiles",
+      "ignoreValues",
+      "advisoryRules"
+    ],
+    "ignoreRules": "Rule ids as plain strings or {rule|ruleId|id|rules, reason} objects — the exact shapes context.mjs doctor's config-ignore-broken validates; legacy alias: top-level `ignores` or `detector.ignores`. Suppresses those rules for files under the config's scope. Inline regions win inside their span.",
+    "ignoreFiles": "Glob-ish patterns (* within one path segment, ** across segments; matched against the file's path relative to the config's project dir and its basename). Matching files are skipped entirely and listed as kind \"file\" ignores — a skipped file is never invisible.",
+    "ignoreValues": "{rule, value, reason} objects. Suppresses findings of `rule` whose evidence or message contains `value` (substring). reason is required: an entry without one is ignored and surfaced as a warning in --json.",
+    "advisoryRules": "Rule ids demoted to advisory for that scope: findings stay in the report (flagged demoted) but never gate the exit code. Suppression ladder per finding: inline region -> config rule ignore -> value ignore; advisory demotion applies to what survives and never hides anything."
+  },
   "rules": [
     {
       "id": "marquee",

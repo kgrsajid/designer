@@ -16,9 +16,10 @@
  * hard-coded), and one guarded `git status --porcelain` (see below).
  *
  * DECLARED DEVIATION (the only exec in this tool): `execFileSync('git',
- * ['status','--porcelain','--','.'], …)` — args ARRAY, never a shell string,
- * run read-only with cwd=<root>, wrapped in try/catch; any failure (git
- * missing, not a repository) degrades gracefully to "git: unavailable".
+ * ['--no-optional-locks','status','--porcelain','--','.'], …)` — args ARRAY,
+ * never a shell string, run read-only with cwd=<root>, wrapped in try/catch;
+ * any failure (git missing, not a repository) degrades gracefully to
+ * "git: unavailable".
  *
  * Exit codes: 0 = ok / no drift · 2 = doctor found drift · 1 = usage or scan error.
  */
