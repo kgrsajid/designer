@@ -1,0 +1,19 @@
+{
+  "schema": "designer:critique-snapshot 1",
+  "timestamp": "2026-11-05T10:00:00.000Z",
+  "surface": "index.html",
+  "mode": "work",
+  "verdict": "Ships: task friction low, identity consistent, focal moment lands.",
+  "scores": {
+    "nielsenTotal": 31,
+    "nielsenMax": 40,
+    "renormalized": false,
+    "perHeuristic": { "visibility": 3, "match": 3, "control": 3, "consistency": 4, "error": 3, "recognition": 3, "efficiency": 3, "aesthetic": 4, "recovery": 3, "help": 2 }
+  },
+  "priorities": [
+    { "id": "P3-01", "severity": "P3", "what": "Help copy for keyboard shortcuts is discoverable only via footer", "why": "Work-mode users live on keys; hiding the map costs seconds per session.", "fix": "Surface '?' shortcut hint near the queue header.", "verb": "polish", "status": "closed" }
+  ],
+  "fingerprint": { "algo": "sha256", "head8": "bbbbbbbb", "bytes": 2176 },
+  "provenance": { "detectorRun": true, "degraded": null },
+  "recommendedSequence": ["polish"]
+}

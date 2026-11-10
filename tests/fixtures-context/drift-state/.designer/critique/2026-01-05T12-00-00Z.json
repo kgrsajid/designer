@@ -1,0 +1,19 @@
+{
+  "schema": "designer:critique-snapshot 1",
+  "timestamp": "2026-01-05T12:00:00.000Z",
+  "surface": "grading.html",
+  "mode": "work",
+  "verdict": "Usable but generic; identity thin, several floor violations open.",
+  "scores": {
+    "nielsenTotal": 19,
+    "nielsenMax": 40,
+    "renormalized": false,
+    "perHeuristic": { "visibility": 2, "match": 2, "control": 2, "consistency": 2, "error": 1, "recognition": 2, "efficiency": 2, "aesthetic": 2, "recovery": 2, "help": 2 }
+  },
+  "priorities": [
+    { "id": "P1-01", "severity": "P1", "what": "Grading buttons hit gray-on-gray at 2.9:1 contrast", "why": "Primary action must be visible without hunting.", "fix": "Tint button text from the surface hue to reach 4.5:1.", "verb": "fix", "status": "open" }
+  ],
+  "fingerprint": { "algo": "sha256", "head8": "cccccccc", "bytes": 1536 },
+  "provenance": { "detectorRun": true, "degraded": null },
+  "recommendedSequence": ["fix"]
+}

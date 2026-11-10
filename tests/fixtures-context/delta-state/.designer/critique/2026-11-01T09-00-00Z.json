@@ -1,0 +1,19 @@
+{
+  "schema": "designer:critique-snapshot 1",
+  "timestamp": "2026-11-01T09:00:00.000Z",
+  "surface": "inbox.html",
+  "mode": "work",
+  "verdict": "Partial run: visibility heuristic not scoreable this pass.",
+  "scores": {
+    "nielsenTotal": 23,
+    "nielsenMax": 36,
+    "renormalized": true,
+    "perHeuristic": { "visibility": "n/a", "match": 3, "control": 2, "consistency": 3, "error": 2, "recognition": 3, "efficiency": 2, "aesthetic": 3, "recovery": 3, "help": 2 }
+  },
+  "priorities": [
+    { "id": "P2-01", "severity": "P2", "what": "Sidebar collapse state is invisible on return visits", "why": "Control state must persist and be visible.", "fix": "Persist and indicate the collapse state.", "verb": "fix", "status": "open" }
+  ],
+  "fingerprint": { "algo": "sha256", "head8": "eeee0001", "bytes": 1712 },
+  "provenance": { "detectorRun": true, "degraded": "visibility heuristic unavailable" },
+  "recommendedSequence": ["fix"]
+}

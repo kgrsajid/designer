@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "ignores": [
+    { "rule": "em-dash-overuse", "reason": "editorial voice uses em dashes deliberately" }
+  ]
+}

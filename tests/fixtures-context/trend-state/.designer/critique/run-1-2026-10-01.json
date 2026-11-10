@@ -1,0 +1,20 @@
+{
+  "schema": "designer:critique-snapshot 1",
+  "timestamp": "2026-10-01T09:00:00.000Z",
+  "surface": "inbox.html",
+  "mode": "work",
+  "verdict": "Baseline run: two findings, one closed on the spot.",
+  "scores": {
+    "nielsenTotal": 26,
+    "nielsenMax": 40,
+    "renormalized": false,
+    "perHeuristic": { "visibility": 3, "match": 3, "control": 2, "consistency": 3, "error": 2, "recognition": 3, "efficiency": 2, "aesthetic": 3, "recovery": 3, "help": 2 }
+  },
+  "priorities": [
+    { "id": "P2-01", "severity": "P2", "what": "Buttons render pure gray text on colored surfaces", "why": "gray-on-color is a documented sin; contrast lands under floor.", "fix": "Tint from the surface hue.", "verb": "fix", "status": "open" },
+    { "id": "P1-01", "severity": "P1", "what": "Focus ring missing on primary action", "why": "Keyboard operators cannot see their position.", "fix": "Restore a visible focus ring.", "verb": "fix", "status": "closed" }
+  ],
+  "fingerprint": { "algo": "sha256", "head8": "dddd0001", "bytes": 1901 },
+  "provenance": { "detectorRun": true, "degraded": null },
+  "recommendedSequence": ["fix"]
+}

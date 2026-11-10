@@ -1,0 +1,20 @@
+{
+  "schema": "designer:critique-snapshot 1",
+  "timestamp": "2026-10-08T09:00:00.000Z",
+  "surface": "inbox.html",
+  "mode": "work",
+  "verdict": "Regressed slightly: gray-on-color still open, tiny body copy introduced.",
+  "scores": {
+    "nielsenTotal": 24,
+    "nielsenMax": 40,
+    "renormalized": false,
+    "perHeuristic": { "visibility": 2, "match": 3, "control": 2, "consistency": 3, "error": 2, "recognition": 3, "efficiency": 2, "aesthetic": 2, "recovery": 3, "help": 2 }
+  },
+  "priorities": [
+    { "id": "P2-01", "severity": "P2", "what": "Buttons render pure gray text on colored surfaces", "why": "Still under contrast floor on colored buttons.", "fix": "Tint from the surface hue.", "verb": "fix", "status": "open" },
+    { "id": "P3-01", "severity": "P3", "what": "Body copy set at 12px below readable floor", "why": "Readable floor exists for a reason.", "fix": "Raise to 16px base.", "verb": "fix", "status": "open" }
+  ],
+  "fingerprint": { "algo": "sha256", "head8": "dddd0002", "bytes": 1948 },
+  "provenance": { "detectorRun": true, "degraded": null },
+  "recommendedSequence": ["fix"]
+}

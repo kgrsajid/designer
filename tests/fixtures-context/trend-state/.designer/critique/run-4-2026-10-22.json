@@ -1,0 +1,17 @@
+{
+  "schema": "designer:critique-snapshot 1",
+  "timestamp": "2026-10-22T09:00:00.000Z",
+  "surface": "inbox.html",
+  "mode": "work",
+  "verdict": "Degraded run: heuristic scoring unavailable (n/a across the board) — renormalization case.",
+  "scores": {
+    "nielsenTotal": 0,
+    "nielsenMax": 0,
+    "renormalized": true,
+    "perHeuristic": { "visibility": "n/a", "match": "n/a", "control": "n/a", "consistency": "n/a", "error": "n/a", "recognition": "n/a", "efficiency": "n/a", "aesthetic": "n/a", "recovery": "n/a", "help": "n/a" }
+  },
+  "priorities": [],
+  "fingerprint": { "algo": "sha256", "head8": "dddd0004", "bytes": 1610 },
+  "provenance": { "detectorRun": false, "degraded": "heuristics unavailable" },
+  "recommendedSequence": []
+}

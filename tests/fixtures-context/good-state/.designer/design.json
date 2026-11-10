@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "tokens": {
+    "color": ["#0F172A", "#FFFFFF"],
+    "font": ["Söhne", "Inter"],
+    "font-size": ["16px"],
+    "radius": ["8px"]
+  }
+}

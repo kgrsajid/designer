@@ -1,0 +1,19 @@
+{
+  "schema": "designer:critique-snapshot 1",
+  "timestamp": "2026-10-28T09:00:00.000Z",
+  "surface": "index.html",
+  "mode": "work",
+  "verdict": "Functional surface; identity present but focal moment missing.",
+  "scores": {
+    "nielsenTotal": 27,
+    "nielsenMax": 40,
+    "renormalized": false,
+    "perHeuristic": { "visibility": 3, "match": 3, "control": 2, "consistency": 3, "error": 2, "recognition": 3, "efficiency": 3, "aesthetic": 3, "recovery": 3, "help": 2 }
+  },
+  "priorities": [
+    { "id": "P2-01", "severity": "P2", "what": "Reconciled-count change is invisible without a focal moment", "why": "The count is the payoff of the whole task; silent updates read as broken.", "fix": "Add a 150ms ease-out scale pulse on the count when an entry clears.", "verb": "polish", "status": "closed" }
+  ],
+  "fingerprint": { "algo": "sha256", "head8": "aaaaaaaa", "bytes": 2048 },
+  "provenance": { "detectorRun": true, "degraded": null },
+  "recommendedSequence": ["polish"]
+}

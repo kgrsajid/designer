@@ -1,0 +1,19 @@
+{
+  "schema": "designer:critique-snapshot 1",
+  "timestamp": "2026-11-08T09:00:00.000Z",
+  "surface": "inbox.html",
+  "mode": "work",
+  "verdict": "Full run: error prevention and aesthetic both gained a point.",
+  "scores": {
+    "nielsenTotal": 28,
+    "nielsenMax": 40,
+    "renormalized": false,
+    "perHeuristic": { "visibility": 3, "match": 3, "control": 2, "consistency": 3, "error": 3, "recognition": 3, "efficiency": 2, "aesthetic": 4, "recovery": 3, "help": 2 }
+  },
+  "priorities": [
+    { "id": "P2-01", "severity": "P2", "what": "Sidebar collapse state is invisible on return visits", "why": "Still open.", "fix": "Persist and indicate the collapse state.", "verb": "fix", "status": "open" }
+  ],
+  "fingerprint": { "algo": "sha256", "head8": "eeee0002", "bytes": 1755 },
+  "provenance": { "detectorRun": true, "degraded": null },
+  "recommendedSequence": ["fix"]
+}

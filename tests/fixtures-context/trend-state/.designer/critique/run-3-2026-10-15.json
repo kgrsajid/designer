@@ -1,0 +1,20 @@
+{
+  "schema": "designer:critique-snapshot 1",
+  "timestamp": "2026-10-15T09:00:00.000Z",
+  "surface": "inbox.html",
+  "mode": "work",
+  "verdict": "Recovered and improved; but the focus ring fix did not survive the refactor.",
+  "scores": {
+    "nielsenTotal": 30,
+    "nielsenMax": 40,
+    "renormalized": false,
+    "perHeuristic": { "visibility": 4, "match": 3, "control": 3, "consistency": 3, "error": 3, "recognition": 3, "efficiency": 3, "aesthetic": 3, "recovery": 3, "help": 2 }
+  },
+  "priorities": [
+    { "id": "P2-01", "severity": "P2", "what": "Buttons render pure gray text on colored surfaces", "why": "Fixed this run.", "fix": "Tint applied.", "verb": "fix", "status": "closed" },
+    { "id": "P1-01", "severity": "P1", "what": "Focus ring missing on primary action", "why": "Closed in run 1, reopened by the button refactor.", "fix": "Restore a visible focus ring.", "verb": "fix", "status": "open" }
+  ],
+  "fingerprint": { "algo": "sha256", "head8": "dddd0003", "bytes": 1994 },
+  "provenance": { "detectorRun": true, "degraded": null },
+  "recommendedSequence": ["fix"]
+}

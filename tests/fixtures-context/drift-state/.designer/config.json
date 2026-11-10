@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "ignores": [
+    "em-dash-overuse",
+    { "rule": "not-a-real-rule", "reason": "stale entry pointing at a renamed rule" }
+  ]
+}
