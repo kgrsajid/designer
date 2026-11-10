@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "note": "Utility-class expansion map. Classes matching a pattern resolve to a token-ish reference ({...}) and pass design-system/literal-value rules by construction — a utility class is token usage, not drift. Only arbitrary-value utilities (e.g. bg-[#7c3aed], text-[11px]) carry literals into checking. Token placeholders use $1/$2/$3 for capture groups.",
+  "patterns": [
+    { "kind": "color", "match": "^(bg|text|border|ring|from|via|to|fill|stroke|accent|caret|divide|outline|placeholder|decoration|shadow)-(white|black|transparent|current)$", "token": "{color.$2}" },
+    { "kind": "color", "match": "^(bg|text|border|ring|from|via|to|fill|stroke|accent|caret|divide|outline|placeholder|decoration|shadow)-([a-z]+)-([0-9]{2,3})$", "token": "{color.$2.$3}" },
+    { "kind": "spacing", "match": "^-?(p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|gap-x|gap-y|space-x|space-y|w|h|size|min-w|min-h|max-w|max-h|top|right|bottom|left|inset|inset-x|inset-y)-(\\d+(?:\\.\\d+)?)$", "token": "{space.$2}" },
+    { "kind": "radius", "match": "^rounded(-(t|r|b|l|tl|tr|br|bl))?(-(none|sm|md|lg|xl|2xl|3xl|full))?$", "token": "{radius.$4|md}" },
+    { "kind": "shadow", "match": "^shadow(-(sm|md|lg|xl|2xl|inner|none))?$", "token": "{shadow.$2|md}" },
+    { "kind": "font", "match": "^font(-(sans|serif|mono))$", "token": "{font.$2}" },
+    { "kind": "font-weight", "match": "^font(-(thin|extralight|light|normal|medium|semibold|bold|extrabold|black))$", "token": "{font-weight.$2}" },
+    { "kind": "font-size", "match": "^text(-(xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl))$", "token": "{font-size.$2}" },
+    { "kind": "leading", "match": "^leading(-(none|tight|snug|normal|relaxed|loose|3|4|5|6|7|8|9|10))$", "token": "{leading.$2}" },
+    { "kind": "tracking", "match": "^tracking(-(tighter|tight|normal|wide|wider|widest))$", "token": "{tracking.$2}" },
+    { "kind": "opacity", "match": "^opacity-(\\d+)$", "token": "{opacity.$1}" },
+    { "kind": "z", "match": "^z-(\\d+)$", "token": "{z.$1}" },
+    { "kind": "duration", "match": "^duration-(\\d+)$", "token": "{duration.$1}" }
+  ],
+  "arbitrary": {
+    "note": "prefix-[value] carries a literal. The prefix family decides which property the literal feeds. Color detection: value starts with # or rgb(/hsl(/oklch(. text-[v] resolves to font-size unless the value is a color literal.",
+    "prefixes": {
+      "bg": "background",
+      "text": "text-or-size",
+      "border": "border-color-or-width",
+      "from": "gradient-color",
+      "via": "gradient-color",
+      "to": "gradient-color",
+      "fill": "fill",
+      "stroke": "stroke",
+      "ring": "ring-color",
+      "accent": "accent-color",
+      "p": "padding", "px": "padding", "py": "padding", "pt": "padding", "pr": "padding", "pb": "padding", "pl": "padding",
+      "m": "margin", "mx": "margin", "my": "margin", "mt": "margin", "mr": "margin", "mb": "margin", "ml": "margin",
+      "gap": "gap", "w": "width", "h": "height", "min-w": "min-width", "min-h": "min-height", "max-w": "max-width", "max-h": "max-height",
+      "rounded": "border-radius", "shadow": "box-shadow", "tracking": "letter-spacing", "leading": "line-height"
+    }
+  }
+}

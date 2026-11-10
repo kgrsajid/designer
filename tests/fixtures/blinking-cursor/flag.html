@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>t</title></head>
+<body>
+<style>
+@keyframes caret-blink{0%,100%{opacity:1}50%{opacity:0}}
+.caret::after{content:"|";animation:caret-blink 1s steps(2,start) infinite}
+</style>
+<p class="caret">Typing</p>
+</body>
+</html>

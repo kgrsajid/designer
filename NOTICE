@@ -1,0 +1,12 @@
+designer
+========
+
+This skill is an independent, clean-room implementation inspired by the concept
+of "Impeccable" by Paul Bakaus (https://impeccable.style). No code or content
+was copied from that project: this implementation was written from scratch
+based on independent analysis of publicly documented concepts and factual
+detector thresholds. We thank the original author for popularizing the
+anti-slop detector + design-direction pattern for coding agents.
+
+All code and data in this repository is original work.
+License: Apache License 2.0 (see LICENSE) — Copyright 2026 Kazi.

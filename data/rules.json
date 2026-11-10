@@ -1,0 +1,1336 @@
+{
+  "version": 1,
+  "tool": "designer-detect",
+  "note": "Single source of truth for the designer skill rule registry. Every rule from the recreation blueprint's rule-accounting table has exactly one entry. No rule counts or rule metadata may be hard-coded anywhere else; scripts/detect.mjs and scripts/test.mjs read this file at runtime.",
+  "severityPolicy": {
+    "values": [
+      "blocker",
+      "warning",
+      "polish",
+      "informational"
+    ],
+    "advisory": [
+      "polish",
+      "informational"
+    ],
+    "gating": [
+      "blocker",
+      "warning"
+    ],
+    "blocker": "The flag-unmodified-output sins + content-minimum rules from the blueprint immediate tier (broken output, objective legibility failures, single-property mechanical slop, design-system drift): broken-image, text-overflow (source variant), gray-on-color, tiny-text, gradient-text, dark-glow, design-system-font, design-system-color, design-system-radius, design-system-font-size. Rendered-phase 'error'-class rules (script-error, content-hidden-at-rest) carry blocker severity as metadata for the browser-tool phase.",
+    "advisoryRule": "Advisory findings never gate the exit code and are suppressed by --no-advisory."
+  },
+  "tierSemantics": {
+    "values": [
+      "immediate",
+      "post-render-visual",
+      "heavy"
+    ],
+    "immediate": "Findings that must never ship; enforced at the edit site. In v1 this is exactly the 10 source-provable members listed in severityPolicy.blocker.",
+    "post-render-visual": "Checkable only against the rendered page (browser-tool audit checklist), never in the source detector.",
+    "heavy": "Everything else: deferred deep-pass work. Note that all non-immediate v1-source rules DO run in detect.mjs's single source pass today; their tier records triage weight (deep-pass findings, not edit-site gate blockers), and marks the deferred-v2 rules that additionally need a DOM/JSX structure pass."
+  },
+  "scopeSemantics": {
+    "values": [
+      "css",
+      "html"
+    ],
+    "css": "Rule is provable from declared CSS (style blocks, stylesheets, inline styles, utility classes).",
+    "html": "Rule is provable from markup/text content (tags, attributes, visible text)."
+  },
+  "statusSemantics": {
+    "v1-source": "Implemented in scripts/detect.mjs (M1). Has a fixture pair.",
+    "rendered-phase": "Not in detect.mjs. Covered by the browser-tool rendered checklist in the audit/critique playbooks.",
+    "deferred-v2": "Needs a light DOM/JSX structure pass. Not implemented in v1.",
+    "not-adopted": "Consciously not adopted (covered by playbook prose instead)."
+  },
+  "renames": [
+    {
+      "from": "codex-grid-background",
+      "to": "grid-background",
+      "reason": "Renamed for our registry: the antipattern (tiled hairline grid-line background) is not model-specific."
+    }
+  ],
+  "sidecarSchema": {
+    "note": "Design-system rules activate ONLY when a token record is discoverable by walking up from the scanned file. Without a record, drift is not provable and the rules stay silent (file-proves-only).",
+    "paths": [
+      ".designer/design.json",
+      "DESIGN.md"
+    ],
+    "designJson": {
+      "version": 1,
+      "tokens": {
+        "color": [
+          "#rrggbb | css named color | rgb(...)"
+        ],
+        "font": [
+          "Family Name"
+        ],
+        "radius": [
+          "8px"
+        ],
+        "font-size": [
+          "16px"
+        ]
+      }
+    },
+    "designMd": "YAML frontmatter (between leading --- fences); color-like values under keys containing 'color', font families under keys containing 'font'/'typography', radii under 'radius'/'rounded', sizes under 'size'."
+  },
+  "passByConstruction": [
+    "Any value containing var(...) or a SCSS/LESS variable ($x, @x) is token usage, not drift — every literal-value rule skips it.",
+    "Custom-property definitions (properties starting with --) are token sources and are exempt from design-system rules.",
+    "Utility classes that expand via data/utility-classes.json (e.g. Tailwind bg-blue-500 -> {color.blue.500}) resolve to token-ish references and pass. Only arbitrary-value utilities (bg-[#7c3aed]) carry literals into checking."
+  ],
+  "rules": [
+    {
+      "id": "marquee",
+      "name": "Auto-scrolling content",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "css",
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file proves content moves by itself: a <marquee> element, or an infinite animation whose in-file keyframes translate along the X axis.",
+      "message": "Auto-scrolling content (marquee)",
+      "detector": {
+        "mechanical": "HTML: <marquee> tag. CSS: a block declaring an animation with the keyword 'infinite' whose referenced @keyframes (same file) animate transform with translateX/translate; or keyframes/animation names matching /marquee|ticker/i.",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "hard-offset-shadow",
+      "name": "Unblurred offset shadow",
+      "category": "quality",
+      "severity": "polish",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file declares a box-shadow with a >=4px offset and zero blur — the hard-offset neobrutalist costume outside a genuinely neobrutalist world. Waivable.",
+      "message": "Hard offset shadow with no blur (review: intended neobrutalism?)",
+      "detector": {
+        "mechanical": "box-shadow item where |x|>=4px or |y|>=4px and blur=0 (spread allowed).",
+        "thresholds": {
+          "offsetPx": 4,
+          "blurPx": 0
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "repeating-stripes-gradient",
+      "name": "Decorative repeating stripe background",
+      "category": "slop",
+      "severity": "polish",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file declares a repeating-linear-gradient/repeating-conic-gradient background — stripes as pure decoration.",
+      "message": "Repeating stripe gradient background",
+      "detector": {
+        "mechanical": "background/background-image value contains repeating-linear-gradient( or repeating-conic-gradient(.",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "grid-background",
+      "name": "Tiled hairline grid-line background",
+      "category": "slop",
+      "severity": "polish",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "renamedFrom": "codex-grid-background",
+      "description": "The file composes a tiled grid of hairlines from two 1px-stop linear-gradients plus background-size — a grid overlay standing in for a real canvas/map/blueprint.",
+      "message": "Tiled hairline grid-line background",
+      "detector": {
+        "mechanical": "Same block: background-image with >=2 linear-gradient() layers each containing a 1px color stop (pattern 'Npx, transparent Npx'), AND a background-size with two lengths.",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "bounce-easing",
+      "name": "Overshooting elastic easing",
+      "category": "slop",
+      "severity": "polish",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file declares a cubic-bezier whose y control point exceeds 1 — elastic overshoot; prefer ease-out-quart/quint/expo.",
+      "message": "Overshooting (bounce) easing curve",
+      "detector": {
+        "mechanical": "Any timing-function value cubic-bezier(a,b,c,d) with b>1 or d>1.",
+        "thresholds": {
+          "yControlMax": 1
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "extreme-negative-tracking",
+      "name": "Tracking below the legibility floor",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file declares letter-spacing tighter than the -0.04em floor.",
+      "message": "Letter-spacing past the -0.04em legibility floor",
+      "detector": {
+        "mechanical": "letter-spacing value < -0.04em (px/rem converted at a 16px root basis; em relative to any declared font-size in the block, else 16px).",
+        "thresholds": {
+          "em": -0.04
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "wide-tracking",
+      "name": "Wide tracking on body text",
+      "category": "quality",
+      "severity": "polish",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file declares letter-spacing >0.05em on non-heading text.",
+      "message": "Letter-spacing >0.05em on body text",
+      "detector": {
+        "mechanical": "letter-spacing > 0.05em (16px root basis for absolute units) in a block whose selector is not an h1-h6 element selector and which does not declare text-transform:uppercase.",
+        "thresholds": {
+          "em": 0.05
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "skipped-heading",
+      "name": "Skipped heading level",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The markup jumps heading levels (e.g. h1 followed by h3), breaking the document outline.",
+      "message": "Heading level jump",
+      "detector": {
+        "mechanical": "In document order of h1-h6 openings, a jump from level L to level M with M > L+1.",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "tiny-text",
+      "name": "Body text below 12px",
+      "category": "quality",
+      "severity": "blocker",
+      "scopes": [
+        "css"
+      ],
+      "tier": "immediate",
+      "status": "v1-source",
+      "description": "The file declares a font-size under 12px for body-ish text (14px+ recommended, 16 ideal). Immediate tier: objective legibility failure.",
+      "message": "Body text below 12px",
+      "detector": {
+        "mechanical": "Declared font-size < 12px (pt/rem/px converted at 16px root) on a selector that does not match the functional-UI keyword list (see undersized-ui-text). Em values skip (unprovable without context).",
+        "thresholds": {
+          "px": 12
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "cramped-padding",
+      "name": "Padding under 8px on a styled box",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file proves text sits closer than 8px to a visible box edge; add >=8px (ideal 12-16).",
+      "message": "Padding under 8px on a styled box",
+      "detector": {
+        "mechanical": "Same block: padding/padding-x/padding-y value in (0,8)px on any side AND box styling present (background with color/gradient, border other than none, or border-radius > 0).",
+        "thresholds": {
+          "minPx": 8
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "broken-image",
+      "name": "Empty or placeholder image src",
+      "category": "quality",
+      "severity": "blocker",
+      "scopes": [
+        "html"
+      ],
+      "tier": "immediate",
+      "status": "v1-source",
+      "description": "The markup contains an <img> with an empty or placeholder src. Immediate tier: broken output.",
+      "message": "Image with empty or placeholder src",
+      "detector": {
+        "mechanical": "<img> whose src attribute is missing, empty, '#', contains 'placeholder'/'placehold', or is a 1x1 gif data URI.",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "undersized-ui-text",
+      "name": "Functional text below 11px",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file declares a font-size under 11px for functional UI text (10px is legal smallprint only; a DESIGN.md ramp does not launder it).",
+      "message": "Functional UI text below 11px",
+      "detector": {
+        "mechanical": "Declared font-size < 11px on a selector matching /btn|button|label|tag|badge|chip|input|select|hint|meta|caption|tab|menu|nav|link|action/ (takes precedence over tiny-text for the same declaration).",
+        "thresholds": {
+          "px": 11
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "justified-text",
+      "name": "Justified text without hyphenation",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file declares text-align:justify without hyphens — rivers in narrow columns. CJK/Thai/Arabic scripts are exempt.",
+      "message": "Justified text without hyphenation",
+      "detector": {
+        "mechanical": "Same block: text-align: justify AND no hyphens declaration in the block. File exempt when <html lang> starts with zh|ja|ko|th|ar|he|fa|ug.",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "layout-transition",
+      "name": "Transition animates layout properties",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file transitions layout-affecting properties instead of compositor-friendly ones.",
+      "message": "Transition on a layout property",
+      "detector": {
+        "mechanical": "transition/transition-property value names any of: width, height, min-width, min-height, max-width, max-height, top, left, right, bottom, inset, margin, margin-top/right/bottom/left, padding, padding-*, flex-basis, flex-grow, grid-template-columns, grid-template-rows, gap, font-size, line-height.",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "organic-clip-path",
+      "name": "Polygon clip-path approximating an organic contour",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file uses a many-vertex polygon() to fake an organic blob silhouette — derive an alpha matte or ship a cut-out instead.",
+      "message": "Many-vertex polygon clip-path imitating an organic shape",
+      "detector": {
+        "mechanical": "clip-path value containing polygon( with >=6 vertices.",
+        "thresholds": {
+          "vertices": 6
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "numbered-section-labels",
+      "name": "Zero-padded section index labels",
+      "category": "slop",
+      "severity": "polish",
+      "scopes": [
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "Decorative 01/02 section numbering that carries no sequence information.",
+      "message": "Zero-padded section number labels (01/02)",
+      "detector": {
+        "mechanical": ">=2 standalone text labels matching /^0\\d$/ (zero-padded two-digit) in the file's markup text.",
+        "thresholds": {
+          "count": 2
+        },
+        "fileLevel": true
+      }
+    },
+    {
+      "id": "theater-slop-phrase",
+      "name": "'X theater' copy tic",
+      "category": "slop",
+      "severity": "polish",
+      "scopes": [
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "Marketing copy leans on the 'X theater' construction.",
+      "message": "'X theater' copy tic",
+      "detector": {
+        "mechanical": "Regex /\\b[a-z]+ theater\\b/i over markup text; first occurrence per file.",
+        "fileLevel": true
+      }
+    },
+    {
+      "id": "label-line-height",
+      "name": "Small label with very loose line-height",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file declares visible label/button-sized text (<=13px) with a line-height ratio above 1.7.",
+      "message": "Label-sized text with line-height ratio >1.7",
+      "detector": {
+        "mechanical": "Same-block declared pair: font-size <=13px AND line-height ratio >1.7 (unitless value, or px line-height / font-size).",
+        "thresholds": {
+          "fontSizePx": 13,
+          "ratio": 1.7
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "gpt-thin-border-wide-shadow",
+      "name": "Row of hairline-border + diffuse-shadow cards",
+      "category": "slop",
+      "severity": "polish",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file styles a row of cards with a 1px hairline border plus a wide diffuse shadow — the 'ghost card' default.",
+      "message": "Hairline-border + diffuse-shadow card row",
+      "detector": {
+        "mechanical": ">=2 blocks in the file each declaring a border <=1px AND a box-shadow with blur >=12px and |x|,|y| <=16px (a soft elevation shadow, not an offset).",
+        "thresholds": {
+          "blocks": 2,
+          "borderPx": 1,
+          "blurPx": 12,
+          "offsetPx": 16
+        },
+        "fileLevel": true
+      }
+    },
+    {
+      "id": "all-caps-body",
+      "name": "All-caps sentence-length body text",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "A sentence-length run of body text is set fully in uppercase (buttons/kickers and code are exempt).",
+      "message": "All-caps sentence-length body text",
+      "detector": {
+        "mechanical": "A text chunk of >=80 chars containing >=20 letters and no lowercase letters, not inside button/code/pre/kbd/samp/th.",
+        "thresholds": {
+          "chars": 80,
+          "letters": 20
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "overused-font",
+      "name": "Default AI font",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file loads/uses one of the reflex faces.",
+      "message": "Overused default font",
+      "detector": {
+        "mechanical": "font-family value contains Inter, Roboto, Fraunces, Geist, Plus Jakarta Sans, or Space Grotesk (case-insensitive, word-boundary).",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "gradient-text",
+      "name": "Gradient-clipped text",
+      "category": "slop",
+      "severity": "blocker",
+      "scopes": [
+        "css"
+      ],
+      "tier": "immediate",
+      "status": "v1-source",
+      "description": "The file clips a gradient through text (background-clip:text). Immediate tier: single-property mechanical slop.",
+      "message": "Gradient text",
+      "detector": {
+        "mechanical": "Same block: a gradient background AND (background-clip|-webkit-background-clip: text, or -webkit-text-fill-color: transparent).",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "cream-palette",
+      "name": "Warm cream default background",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file paints a surface in the warm cream/beige default.",
+      "message": "Warm cream/beige background palette",
+      "detector": {
+        "mechanical": "A background/background-color literal (solid, not gradient/url) whose HSL lands in: hue 25-60, saturation 0.15-0.75, lightness 0.82-0.98. First occurrence per file.",
+        "thresholds": {
+          "hue": [
+            25,
+            60
+          ],
+          "saturation": [
+            0.15,
+            0.75
+          ],
+          "lightness": [
+            0.82,
+            0.98
+          ]
+        },
+        "fileLevel": true
+      }
+    },
+    {
+      "id": "dark-glow",
+      "name": "Zero-offset chromatic halo shadow",
+      "category": "slop",
+      "severity": "blocker",
+      "scopes": [
+        "css"
+      ],
+      "tier": "immediate",
+      "status": "v1-source",
+      "description": "The file declares a zero-offset colored blur (or filter drop-shadow) — glow decoration, not depth. Immediate tier.",
+      "message": "Zero-offset chromatic glow shadow",
+      "detector": {
+        "mechanical": "box-shadow item (or filter drop-shadow()) with x=0, y=0, blur >=8px, and a shadow color with saturation >=0.35 and lightness 0.25-0.9 (visible chroma). Shadows without an explicit color are skipped (not provable).",
+        "thresholds": {
+          "blurPx": 8,
+          "saturation": 0.35,
+          "lightness": [
+            0.25,
+            0.9
+          ]
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "radial-halo",
+      "name": "Saturated opaque radial center on dark",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file declares a radial-gradient whose saturated, opaque center washes out from a dark field.",
+      "message": "Saturated radial halo on dark background",
+      "detector": {
+        "mechanical": "radial-gradient whose innermost color stop has saturation >=0.4 and alpha >=0.85, AND the same declaration contains another color with lightness <=0.3 (dark context).",
+        "thresholds": {
+          "saturation": 0.4,
+          "alpha": 0.85,
+          "darkLightness": 0.3
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "side-tab",
+      "name": "Thick one-side accent border on a card",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file styles a boxed element with a thick left/right accent border — the side-tab default.",
+      "message": "Thick one-side accent border (side tab)",
+      "detector": {
+        "mechanical": "Same block: border-left/right width >=3px with a non-none style AND box styling present (background with color/gradient, border-radius >0, or box-shadow), while the opposite side is not equally bordered.",
+        "thresholds": {
+          "widthPx": 3
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "border-accent-on-rounded",
+      "name": "Accent border clashing with rounded corners",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file pairs a visibly rounded box (>=12px) with a colored accent border >=2px.",
+      "message": "Accent border on a rounded box",
+      "detector": {
+        "mechanical": "Same block: border-radius >=12px (min corner) AND a border with width >=2px and a saturated border color (HSL saturation >=0.3).",
+        "thresholds": {
+          "radiusPx": 12,
+          "borderPx": 2,
+          "saturation": 0.3
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "tight-leading",
+      "name": "Line-height under 1.3 (same-block pair)",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file declares font-size and line-height in the SAME block with a ratio below 1.3. Same-block pairs only — this is the rule that false-positived via inheritance in the original tool; never resolve inheritance.",
+      "message": "Line-height ratio <1.3 (declared same-block pair)",
+      "detector": {
+        "mechanical": "Same-block declared pair font-size + line-height with ratio <1.3 (unitless line-height used directly; px line-height divided by font-size). Heading blocks may waive via a narrow inline ignore.",
+        "thresholds": {
+          "ratio": 1.3
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "gray-on-color",
+      "name": "Neutral gray text on saturated background",
+      "category": "quality",
+      "severity": "blocker",
+      "scopes": [
+        "css"
+      ],
+      "tier": "immediate",
+      "status": "v1-source",
+      "description": "The same block declares gray text on a colored surface — tint secondary text from the surface hue instead. Immediate tier.",
+      "message": "Gray text on colored background (same-block pair)",
+      "detector": {
+        "mechanical": "Same-block declared pair: color literal with saturation <0.15 and lightness 0.15-0.9, AND background/background-color literal (solid) with saturation >0.4. var()/token refs skip by construction.",
+        "thresholds": {
+          "graySaturation": 0.15,
+          "bgSaturation": 0.4
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "line-length",
+      "name": "Declared measure beyond 80ch",
+      "category": "quality",
+      "severity": "polish",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file declares a text measure wider than ~80 characters (rendered line-length semantics stay in the browser phase; this is the narrow source variant).",
+      "message": "Declared width beyond 80ch",
+      "detector": {
+        "mechanical": "width or max-width value in ch units >80.",
+        "thresholds": {
+          "ch": 80
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "pulsing-dot",
+      "name": "Decorative pulsing indicator",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file builds a pulsing dot animation; OK only for genuinely-live data, which a file cannot prove.",
+      "message": "Pulsing dot animation",
+      "detector": {
+        "mechanical": "@keyframes in-file whose name matches /pulse|ping|beat|ripple|breath/i (or whose frames oscillate opacity: >=2 direction changes), referenced by a block that also declares border-radius >=50%/999px or a <=16px rounded dot shape.",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "blinking-cursor",
+      "name": "Fake typing caret",
+      "category": "slop",
+      "severity": "polish",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The file animates a fake caret glyph in hero copy.",
+      "message": "Fake blinking typing caret",
+      "detector": {
+        "mechanical": "A ::before/::after block declaring content with a caret glyph (| or Unicode block/bar U+258x, U+259x, U+FFE8) plus an animation; or keyframes named /blink|caret/i applied with a steps() timing.",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "monotonous-spacing",
+      "name": "One spacing value everywhere",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "Every literal spacing declaration in the file uses the same value — no rhythm, one drumbeat.",
+      "message": "Single spacing value used for every spacing declaration",
+      "detector": {
+        "mechanical": ">=8 literal values across margin*/padding*/gap declarations in the file with exactly 1 distinct value (var()/token refs excluded by construction).",
+        "thresholds": {
+          "declarations": 8,
+          "distinctValues": 1
+        },
+        "fileLevel": true
+      }
+    },
+    {
+      "id": "em-dash-overuse",
+      "name": "Em-dash density too high",
+      "category": "slop",
+      "severity": "polish",
+      "scopes": [
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The copy leans on em-dashes: >=8 of them at roughly one per 500 characters.",
+      "message": "Em-dash overuse (>=8 at ~1 per 500 chars)",
+      "detector": {
+        "mechanical": "Count of U+2014 in markup text >=8 AND total text chars / count <=500.",
+        "thresholds": {
+          "count": 8,
+          "charsPerDash": 500
+        },
+        "fileLevel": true
+      }
+    },
+    {
+      "id": "marketing-buzzword",
+      "name": "Marketing buzzword",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "The copy uses AI-marketing filler vocabulary.",
+      "message": "Marketing buzzword in copy",
+      "detector": {
+        "mechanical": "Word-boundary, case-insensitive match of: streamline, empower(ed|ing|s)?, supercharg(e|ed|ing), world-class, unlock(ed|ing|s)?, seamless(ly)?, effortless(ly)?, elevate(d|s)?, revolutioniz(e|ed|ing|ation), cutting-edge, game-?changer, best-in-class, next-generation, unleash(ed|ing)?, limitless(ly)?, transform(ative)? journey. One finding per distinct word per file.",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "text-overflow",
+      "name": "nowrap + fixed width (source variant)",
+      "category": "quality",
+      "severity": "blocker",
+      "scopes": [
+        "css"
+      ],
+      "tier": "immediate",
+      "status": "v1-source",
+      "description": "The same block forces white-space:nowrap onto a fixed width — overflow provable from the declarations alone. Full rendered semantics (content vs container harm) stay in the browser phase. Immediate tier: broken output.",
+      "message": "nowrap text locked to a fixed width (source variant)",
+      "detector": {
+        "mechanical": "Same block: white-space: nowrap AND width or max-width with a fixed length (px/pt/em/rem/ch/% below 100).",
+        "fileLevel": false,
+        "note": "Full semantics are rendered-phase; only this narrow source variant ships in detect.mjs."
+      }
+    },
+    {
+      "id": "design-system-font",
+      "name": "Font outside recorded tokens",
+      "category": "quality",
+      "severity": "blocker",
+      "scopes": [
+        "css"
+      ],
+      "tier": "immediate",
+      "status": "v1-source",
+      "description": "A font-family literal in the file is not among the project's recorded font tokens (DESIGN.md frontmatter or .designer/design.json sidecar). Immediate tier: design-system drift. Sidecar-gated: with no token record the rule stays silent.",
+      "message": "Font family not in the recorded design tokens",
+      "detector": {
+        "group": "design-system",
+        "mechanical": "Each non-generic family in a font-family declaration must match a recorded token (case-insensitive). Generic families (sans-serif/serif/monospace/system-ui/cursive/fantasy/math), var() refs, and custom-property definitions are exempt.",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "design-system-color",
+      "name": "Color literal outside recorded tokens",
+      "category": "quality",
+      "severity": "blocker",
+      "scopes": [
+        "css"
+      ],
+      "tier": "immediate",
+      "status": "v1-source",
+      "description": "A color literal in color/background/border-color-family declarations is not among the recorded color tokens. Immediate tier: design-system drift. Sidecar-gated.",
+      "message": "Color literal not in the recorded design tokens",
+      "detector": {
+        "group": "design-system",
+        "mechanical": "Color literals in properties color, background (solid values only), background-color, border-color and per-side variants, outline-color, fill, stroke, text-decoration-color must match a recorded color token (normalized 6-digit hex). var() refs, gradient stops (v2), and custom-property definitions are exempt.",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "design-system-radius",
+      "name": "Radius outside recorded tokens",
+      "category": "quality",
+      "severity": "blocker",
+      "scopes": [
+        "css"
+      ],
+      "tier": "immediate",
+      "status": "v1-source",
+      "description": "A border-radius length is not among the recorded radius tokens. Immediate tier: design-system drift. Sidecar-gated.",
+      "message": "Border radius not in the recorded design tokens",
+      "detector": {
+        "group": "design-system",
+        "mechanical": "Each border-radius length (per corner/shorthand component) must match a recorded radius token (px number). 50% and pill/circle values are exempt. var() refs exempt.",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "design-system-font-size",
+      "name": "Font-size outside recorded ramp",
+      "category": "quality",
+      "severity": "blocker",
+      "scopes": [
+        "css"
+      ],
+      "tier": "immediate",
+      "status": "v1-source",
+      "description": "A font-size literal is not on the recorded type ramp. Immediate tier: design-system drift. Sidecar-gated.",
+      "message": "Font size not in the recorded type ramp",
+      "detector": {
+        "group": "design-system",
+        "mechanical": "Each font-size literal (px/rem at 16px basis) must match a recorded font-size token. var() refs exempt.",
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "ai-color-palette",
+      "name": "Saturated AI palette markers",
+      "category": "slop",
+      "severity": "polish",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "Declared color literals hit the narrow hue/saturation markers of the saturated AI looks (violet/purple gradients, bright cyan on dark, neon-plus-second-hue). Advisory by design — weak signal in source.",
+      "message": "Color palette matches a saturated AI-default marker (advisory)",
+      "detector": {
+        "mechanical": "On declared color literals (incl. gradient stops, shadow colors, arbitrary utility values): (a) violet: hue 250-290 with saturation >=0.5; (b) bright cyan on dark: hue 170-200, saturation >=0.6, lightness >=0.4, plus another color with lightness <=0.3 in the same declaration/block; (c) neon + second hue: saturation >=0.85, lightness 0.45-0.65, plus a second color in the same declaration/block with hue distance >=40 and saturation >=0.4. One finding per file (first hit).",
+        "thresholds": {
+          "violetHue": [
+            250,
+            290
+          ],
+          "violetSat": 0.5,
+          "cyanHue": [
+            170,
+            200
+          ],
+          "cyanSat": 0.6,
+          "cyanLight": 0.4,
+          "darkLight": 0.3,
+          "neonSat": 0.85,
+          "neonLight": [
+            0.45,
+            0.65
+          ],
+          "hueDistance": 40
+        },
+        "fileLevel": true
+      }
+    },
+    {
+      "id": "radial-spotlight-glow",
+      "name": "Translucent radial accent wash",
+      "category": "slop",
+      "severity": "polish",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "A declared radial-gradient lays a translucent saturated 'spotlight' behind content. Positional/contextual judgment is out of scope — this is the narrow declared-wash heuristic. Advisory.",
+      "message": "Translucent radial spotlight wash (advisory)",
+      "detector": {
+        "mechanical": "radial-gradient whose innermost color stop has saturation >=0.35 and alpha 0.1-0.6. First occurrence per file.",
+        "thresholds": {
+          "saturation": 0.35,
+          "alpha": [
+            0.1,
+            0.6
+          ]
+        },
+        "fileLevel": true
+      }
+    },
+    {
+      "id": "flat-type-hierarchy",
+      "name": "Adjacent heading/body size ratio <1.25",
+      "category": "slop",
+      "severity": "polish",
+      "scopes": [
+        "css"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "Declared heading sizes per stylesheet block step by less than 1.25x — the hierarchy reads flat. Narrow source heuristic on declared sizes only. Advisory.",
+      "message": "Heading size steps <1.25x (flat hierarchy, advisory)",
+      "detector": {
+        "mechanical": "Collect declared font-size per h1-h6 element selector (max per level) plus body font-size, same file. For each adjacent pair of DECLARED levels (h1/h2 ... hN/body), ratio <1.25 flags once (attached to the smaller declaration). Element selectors only — class-based display styles are not provable.",
+        "thresholds": {
+          "ratio": 1.25
+        },
+        "fileLevel": true
+      }
+    },
+    {
+      "id": "oversized-h1",
+      "name": "Sentence-length h1 at display size",
+      "category": "slop",
+      "severity": "polish",
+      "scopes": [
+        "css",
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "A full-sentence headline set at display size: declared h1 size x h1 text length. Narrow heuristic. Advisory.",
+      "message": "Full-sentence h1 at display size (advisory)",
+      "detector": {
+        "mechanical": "An <h1> whose text is >=10 words (or >=60 chars) AND whose font-size is declared in the same file at >=48px (or >=3rem at the 16px root basis).",
+        "thresholds": {
+          "words": 10,
+          "chars": 60,
+          "px": 48
+        },
+        "fileLevel": false
+      }
+    },
+    {
+      "id": "aphoristic-cadence",
+      "name": "'X. No Y.' cadence",
+      "category": "slop",
+      "severity": "polish",
+      "scopes": [
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "v1-source",
+      "description": "Copy repeats the aphorism template ('X. No Y.' / 'Not a feature. A platform.'). Pure regex; advisory.",
+      "message": "Aphoristic 'X. No Y.' cadence (>=3 per file)",
+      "detector": {
+        "mechanical": "Regex over markup text: /\\b[A-Z][^.!?]{2,60}\\.\\s*(?:No|Not)\\s+[^.!?]{2,60}\\./g plus /\\bNot a\\s[^.!?]{2,40}\\.\\s*[A-Z][^.!?]{2,40}\\./g; >=3 total hits per file.",
+        "thresholds": {
+          "hits": 3
+        },
+        "fileLevel": true
+      }
+    },
+    {
+      "id": "low-contrast",
+      "name": "Contrast below 4.5:1 body / 3:1 large",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "html"
+      ],
+      "tier": "post-render-visual",
+      "status": "rendered-phase",
+      "description": "Computed contrast of rendered text against its composited background. NOT provable from source (composited backgrounds) — browser-tool audit checklist item.",
+      "message": "Contrast below 4.5:1 (body) / 3:1 (large)",
+      "detector": {
+        "implementation": "none",
+        "note": "Rendered-phase: in-situ contrast via the browser tool."
+      }
+    },
+    {
+      "id": "body-text-viewport-edge",
+      "name": "Body text within 16px of the viewport edge",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "html"
+      ],
+      "tier": "post-render-visual",
+      "status": "rendered-phase",
+      "description": "Body text closer than 16px to the viewport edge (12px at <=480px width) in the rendered layout.",
+      "message": "Body text flush to the viewport edge",
+      "detector": {
+        "implementation": "none",
+        "note": "Rendered-phase; thresholds 16px / 12px at <=480w carried for the browser checklist."
+      }
+    },
+    {
+      "id": "content-hidden-at-rest",
+      "name": "Large share of text still opacity:0 after reveal",
+      "category": "quality",
+      "severity": "blocker",
+      "scopes": [
+        "html"
+      ],
+      "tier": "post-render-visual",
+      "status": "rendered-phase",
+      "description": "Text that remains hidden after reveal handlers have run — broken output. Error-class in the source registry.",
+      "message": "Content hidden at rest (opacity:0 after reveal)",
+      "detector": {
+        "implementation": "none",
+        "note": "Rendered-phase."
+      }
+    },
+    {
+      "id": "edge-flush-cards",
+      "name": "Scroller cards flush to one side",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "html"
+      ],
+      "tier": "post-render-visual",
+      "status": "rendered-phase",
+      "description": "Horizontal scroller cards running flush against one viewport/container edge.",
+      "message": "Scroller cards flush to one edge",
+      "detector": {
+        "implementation": "none",
+        "note": "Rendered-phase."
+      }
+    },
+    {
+      "id": "text-occlusion",
+      "name": "Text painted under an opaque layer",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "html"
+      ],
+      "tier": "post-render-visual",
+      "status": "rendered-phase",
+      "description": "Text occluded by an overlay in the rendered result.",
+      "message": "Text occluded by an opaque layer",
+      "detector": {
+        "implementation": "none",
+        "note": "Rendered-phase."
+      }
+    },
+    {
+      "id": "first-viewport-column-overflow",
+      "name": "One column runs far past the fold",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "html"
+      ],
+      "tier": "post-render-visual",
+      "status": "rendered-phase",
+      "description": "In the first viewport, one column's content runs far past the fold while siblings stop short.",
+      "message": "First-viewport column overflow imbalance",
+      "detector": {
+        "implementation": "none",
+        "note": "Rendered-phase."
+      }
+    },
+    {
+      "id": "script-error",
+      "name": "Uncaught JS exception on load",
+      "category": "quality",
+      "severity": "blocker",
+      "scopes": [
+        "html"
+      ],
+      "tier": "post-render-visual",
+      "status": "rendered-phase",
+      "description": "The page throws on load. Error-class in the source registry; detectable only at runtime.",
+      "message": "Uncaught script error on load",
+      "detector": {
+        "implementation": "none",
+        "note": "Rendered-phase (browser console)."
+      }
+    },
+    {
+      "id": "heading-rhythm",
+      "name": "Space above heading <= space below",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "html"
+      ],
+      "tier": "post-render-visual",
+      "status": "rendered-phase",
+      "description": "Rendered spacing rhythm: more space below a heading than above.",
+      "message": "Heading spacing rhythm inverted",
+      "detector": {
+        "implementation": "none",
+        "note": "Rendered-phase."
+      }
+    },
+    {
+      "id": "straggler",
+      "name": "One-word last line",
+      "category": "quality",
+      "severity": "polish",
+      "scopes": [
+        "html"
+      ],
+      "tier": "post-render-visual",
+      "status": "rendered-phase",
+      "description": "A lone word on the last line of a paragraph — text-wrap: pretty territory.",
+      "message": "One-word last line (straggler)",
+      "detector": {
+        "implementation": "none",
+        "note": "Rendered-phase."
+      }
+    },
+    {
+      "id": "unbalanced-heading",
+      "name": "Ragged heading wrap",
+      "category": "quality",
+      "severity": "polish",
+      "scopes": [
+        "html"
+      ],
+      "tier": "post-render-visual",
+      "status": "rendered-phase",
+      "description": "A heading that wraps badly — text-wrap: balance territory.",
+      "message": "Unbalanced heading line breaks",
+      "detector": {
+        "implementation": "none",
+        "note": "Rendered-phase."
+      }
+    },
+    {
+      "id": "nested-cards",
+      "name": "Cards inside cards",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "deferred-v2",
+      "description": "A card nested inside another card — always wrong per the craft floor. Needs a DOM/JSX structure pass (v2).",
+      "message": "Card nested inside a card",
+      "detector": {
+        "implementation": "none",
+        "note": "Deferred-v2 markup-structure pass; craft-floor prose carries the ban until then."
+      }
+    },
+    {
+      "id": "icon-tile-stack",
+      "name": "Rounded-square icon tile above heading",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "deferred-v2",
+      "description": "The icon-tile-above-heading feature-grid default. Needs structure pass (v2).",
+      "message": "Rounded icon tile stacked above a heading",
+      "detector": {
+        "implementation": "none",
+        "note": "Deferred-v2."
+      }
+    },
+    {
+      "id": "hero-eyebrow-chip",
+      "name": "Tracked label/pill above hero headline",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "deferred-v2",
+      "description": "The tracked label or pill chip above a hero headline. Needs structure pass (v2).",
+      "message": "Eyebrow chip above the hero headline",
+      "detector": {
+        "implementation": "none",
+        "note": "Deferred-v2."
+      }
+    },
+    {
+      "id": "kicker-above-heading",
+      "name": "Tracked label block above any heading",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "deferred-v2",
+      "description": "The kicker/eyebrow pattern above ANY heading — the craft floor's only outright ban (no brief earns it back). Highest v2 priority; until v2 the ban is carried by craft-floor prose + the audit rendered checklist.",
+      "message": "Kicker/eyebrow label above a heading (hard ban)",
+      "detector": {
+        "implementation": "none",
+        "note": "Deferred-v2; highest priority of the structure rules."
+      }
+    },
+    {
+      "id": "italic-serif-display",
+      "name": "Italic serif display face in hero",
+      "category": "slop",
+      "severity": "warning",
+      "scopes": [
+        "css",
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "deferred-v2",
+      "description": "Fraunces/Recoleta/Playfair/Newsreader-italic as the hero display voice. Needs hero-context structure pass (v2).",
+      "message": "Italic serif display face",
+      "detector": {
+        "implementation": "none",
+        "note": "Deferred-v2."
+      }
+    },
+    {
+      "id": "shape-assembled-illustration",
+      "name": "Primitive-shape SVG pictorial scene",
+      "category": "slop",
+      "severity": "polish",
+      "scopes": [
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "deferred-v2",
+      "description": "An illustration assembled from circles/rects/paths that imitates a picture. Needs SVG structure pass (v2).",
+      "message": "Shape-assembled SVG illustration",
+      "detector": {
+        "implementation": "none",
+        "note": "Deferred-v2."
+      }
+    },
+    {
+      "id": "buried-raster",
+      "name": "Image under near-opaque wash",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "css",
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "deferred-v2",
+      "description": "An image buried under a near-opaque wash (or at near-zero opacity). Needs image-context pairing (v2).",
+      "message": "Raster image buried under a wash",
+      "detector": {
+        "implementation": "none",
+        "note": "Deferred-v2."
+      }
+    },
+    {
+      "id": "repeated-container-text",
+      "name": "Same literal text 3+ times in one card",
+      "category": "quality",
+      "severity": "warning",
+      "scopes": [
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "deferred-v2",
+      "description": "The same literal string repeated >=3 times within one container. Needs structure pass (v2).",
+      "message": "Same text repeated within one container",
+      "detector": {
+        "implementation": "none",
+        "note": "Deferred-v2."
+      }
+    },
+    {
+      "id": "clipped-overflow-container",
+      "name": "overflow:clip ancestor cutting positioned children",
+      "category": "quality",
+      "severity": "polish",
+      "scopes": [
+        "css",
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "deferred-v2",
+      "description": "An overflow:clip ancestor that cuts off its positioned descendants. Needs layout pass (v2).",
+      "message": "overflow:clip container clipping positioned children",
+      "detector": {
+        "implementation": "none",
+        "note": "Deferred-v2."
+      }
+    },
+    {
+      "id": "image-hover-transform",
+      "name": "Image hover transform (taste rule)",
+      "category": "slop",
+      "severity": "informational",
+      "scopes": [
+        "css",
+        "html"
+      ],
+      "tier": "heavy",
+      "status": "not-adopted",
+      "description": "Consciously not adopted: a taste rule needing rendered interaction context. The spirit is covered by the animate playbook (motion must do work).",
+      "message": "Image hover transform (not adopted)",
+      "detector": {
+        "implementation": "none",
+        "note": "Not adopted — see reference/animate.md guidance instead."
+      }
+    }
+  ]
+}

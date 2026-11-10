@@ -8,23 +8,21 @@ The default. The finding is real and the fix belongs in this change. Fix at the 
 
 ## 2. Narrowest ignore, with named evidence
 
-When the finding is intentional: silence the **smallest scope that expresses the intent**, and say why. Prefer value-scoped ignores over rule-scoped — they keep the rule armed:
+When the finding is intentional: silence the **smallest scope that expresses the intent**, and say why. Prefer value-scoped ignores over rule-scoped — they keep the rule armed *(the value-scope mechanism lands M2; until then file+rule is the narrowest available)*. Until then, narrow to the file+rule with a reason the rule can't argue with:
 
 ```
-/* designer-disable overused-font Inter "brand font — DESIGN.md Typography" */
+/* designer-lint-disable overused-font: Inter is the brand font — DESIGN.md Typography */
 ```
-
-This keeps `overused-font` live for every other font in the file. Silencing the whole rule to permit one value is how detectors die.
 
 **Inline ignore syntax** — the file's own comment syntax, payload `designer-disable <rule-id>: reason`:
 
 | File type | Syntax |
 |---|---|
-| CSS/SCSS/JS/TS/TSX/JSX | `/* designer-disable <rule>: reason */` … `/* designer-enable <rule> */` |
-| HTML/Vue/Svelte/Astro | `<!-- designer-disable <rule>: reason -->` … `<!-- designer-enable <rule> -->` |
-| Files with `#` comments | `# designer-disable <rule>: reason` |
+| CSS/SCSS/JS/TS/TSX/JSX | `/* designer-lint-disable <rule>: reason */` … `/* designer-lint-enable <rule> */` |
+| HTML/Vue/Svelte/Astro | `<!-- designer-lint-disable <rule>: reason -->` … `<!-- designer-lint-enable <rule> -->` |
+| Files with `#` comments | `# designer-lint-disable <rule>: reason` |
 
-Scope hierarchy (narrowest wins): **value-scope < file+rule < file < rule**. Config-file ignores live in `.designer/config.json` (committed) or `.designer/config.local.json` (gitignored). Every active ignore is listed in `--json` output — silencing the detector is always visible, never silent.
+Scope hierarchy (narrowest wins): **value-scope < file+rule < file < rule**. Config-file ignores live in `.designer/config.json` (committed) or `.designer/config.local.json` (gitignored) *(mechanism lands M2 — inline ignores are the v1 path)*. Every active ignore is listed in `--json` output — silencing the detector is always visible, never silent.
 
 The reason is mandatory. An ignore without a named reason is a bug.
 
