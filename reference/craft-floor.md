@@ -39,14 +39,25 @@ Earned means the brief names the reason. "It looks modern" is not a reason.
 
 ## Model-calibrated tells
 
-Each model ships default sins. Blocks are written only from **measured** evidence (≥3 observed instances), never guessed.
+Each model ships default sins. Blocks are written only from **measured** evidence (≥3 observed instances), never guessed. Both blocks below measured 2026-11-10 on n=3 unassisted specimen briefs (evidence: `docs/designer-calibration-catalog.md`). Re-measure quarterly.
 
 <glm>
-*(unwritten — measured sins pending dogfooding. Per policy this block exists only when populated.)*
+Measured tells (2026-11-10, n=3):
+- **Default-stack type reflex** — `-apple-system…Roboto…` everywhere, zero typographic voice. Give type a voice.
+- **Badge/kicker chip reflex** — tiny uppercase chips on headings/cards, in 3/3 specimens.
+- **Cramped chip padding** — 3–7px sides on styled chips (floor: 8px).
+- **Tailwind palette verbatim** — indigo `#4f46e5` + Tailwind grays as "the SaaS palette".
+- **Flat heading steps** — adjacent sizes ~1.2x apart (hierarchy needs ≥1.25x).
 </glm>
 
 <mimo>
-*(unwritten — measured sins pending dogfooding. Per policy this block exists only when populated.)*
+Measured tells (2026-11-10, n=3):
+- **Gradient-text headlines** — `background-clip: text` accent on heroes (blocker-grade).
+- **Neon-on-dark costume** — radial spotlight glow + saturated blue on near-black (the "near-black + neon + glow" look).
+- **Ghost cards** — hairline border + huge diffuse shadow (48px observed).
+- **Palette soup** — Tailwind blue mixed with violet-400 + foreign grays in one surface.
+- **Cosmetic skeuomorphism** — terminal/macOS chrome as "developer tool" costume instead of design.
+- *(shares GLM's default stack + cramped chips).*
 </mimo>
 
 ## Closer
