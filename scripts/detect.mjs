@@ -1626,7 +1626,7 @@ CHECKS['em-dash-overuse'] = (model) => {
   const count = (text.match(/\u2014/g) || []).length;
   if (count >= 8 && text.length / count <= 500) {
     const first = allChunks.find((c) => c.text.includes('\u2014'));
-    return [{ line: first?.line ?? 1, evidence: `${count} em-dashes in ${text.length} chars (~1 per ${Math.round(text.length / count)})` }];
+    return [{ line: first?.line ?? 1, evidence: `${count} em-dashes in ${text.length} chars (~1 per ${Math.round(text.length / count)}; flags at >=8 dashes with <=500 chars/dash)` }];
   }
   return [];
 };
