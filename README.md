@@ -25,4 +25,4 @@ Inspired by Paul Bakaus's [Impeccable](https://github.com/pbakaus/impeccable) (i
 
 ## License
 
-Apache-2.0 © 2026 Kazi
+MIT-0 © 2026 Kazi
