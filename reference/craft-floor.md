@@ -14,7 +14,7 @@ Do these on the rendered result where possible (browser tool), on source where t
 6. **States.** Hover, disabled, loading, error, empty — designed, not defaulted. Keyboard focus visible everywhere focusable.
 7. **Browser surfaces.** Selection color, caret color, scrollbar, focus ring, underline offset, tabular numerals in numeric UI. These are the cheapest proof a page was built, not assembled.
 8. **Copy.** Controls name their action ("Save changes", not "Submit"). Errors name the problem and the recovery. No orphan labels.
-9. **Controls.** Toggles, checkboxes, radios, segmented controls are brand surface: accent from tokens (never default OS blue), honest state motion (thumb travels, track crossfades — ~100ms, no bounce), custom geometry only where affordance legibility survives. Fancy means *authored* — expression through the identity's own vocabulary, never decoration on a widget.
+9. **Controls.** Toggles, checkboxes, radios, segmented controls are brand surface: accent from tokens (never default OS blue), honest state motion (thumb travels, track crossfades — ~100ms, no bounce), custom geometry only where affordance legibility survives, hit areas ≥44px on primary interactive elements (the craft bar — 24px is only WCAG 2.5.8's legality line). Fancy means *authored* — expression through the identity's own vocabulary, never decoration on a widget.
 10. **Coverage.** Everything the brief asked for is findable in seconds. Missing requirements are failures, not omissions.
 
 ## Refuse list — defaults that need earning
@@ -36,7 +36,15 @@ A listed default is banned until a brief earns it. Two items are hard bans — n
 - Geometric masks standing in for real illustration
 - Light/dark chosen by category ("SaaS = dark") instead of the use scene
 
-Earned means the brief names the reason. "It looks modern" is not a reason.
+Earned means the identity records it or the brief names the reason. "It looks modern" is not a reason.
+
+### Earned identity — collisions with recorded identity
+
+Kickers, gradient text, glassmorphism, emoji icons sit on both sides: refuse-listed as defaults, yet real brands carry them. Adjudication order: **pinned brief > recorded identity > refuse-list default.**
+
+- **What earns a listed default:** the project's identity records it — DESIGN.md/PRODUCT.md brand records, or the incumbent code as the record (mandate 4) — or the brief pins it by name.
+- **On a collision: PRESERVE** (mandate 2 — refinement preserves) and name the collision in the report. The refuse list polices new invention; it never rewrites an incumbent brand.
+- **The two hard bans stay hard for new work.** An incumbent that already records one is preserved as-is and named in the next critique — not excised mid-refinement, not extended to new surfaces.
 
 ## Model-calibrated tells
 
