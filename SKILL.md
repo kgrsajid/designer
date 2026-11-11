@@ -57,6 +57,7 @@ The mode lives in the surface brief, never in PRODUCT.md. One product can hold a
 
 - **No argument** → read `reference/routing.md` and offer a 2–3 pick menu with reasons. Never auto-run a verb.
 - **Explicit or clearly implied verb** → load its playbook and work. If two verbs fit, ask once.
+- **Vague improve ("make it better")** → propose an amplification verb (`bolder`, or `quieter`/`distill` per diagnosis) before running fix-list passes — polish alone is invisible by construction. See `reference/routing.md`.
 - **Anything else design-related** → treat as general design work under the craft floor.
 - **No PRODUCT.md and the work is a new surface** → run `init` first. Narrow refinements of existing UI proceed on the incumbent brand and offer `init` after.
 - Web-only verbs (typeset's platform notes aside) never lead on native projects.

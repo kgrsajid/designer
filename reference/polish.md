@@ -4,6 +4,8 @@
 
 ## 1. Establish the system
 
+**Sidecar before pass.** If `.designer/design.json` doesn't exist yet, generate it first (`reference/document.md`). The four design-system drift rules arm the moment a sidecar appears — writing one mid-pass buries you in surprise findings. No tokens worth recording? Say so; those four rules stay dark for this pass.
+
 Look at what's deviating and classify each deviation before touching anything:
 
 | Class | Meaning | Action |
@@ -16,7 +18,7 @@ Look at what's deviating and classify each deviation before touching anything:
 ## 2. Gather evidence
 
 - **Use the thing yourself.** Click the path, type the worst-case data, resize the window. Polish decisions made without touching the surface are guesses.
-- **Read the latest critique snapshot** if `.designer/critique/` has one (`node scripts/context.mjs --trend`). Its open priorities are your backlog — closing them here is the point.
+- **Read the latest critique snapshot** if `.designer/critique/` has one (`node scripts/context.mjs --trend`). Its open priorities are your backlog — closing them here is the point. No snapshots yet: proceed on direct evidence (the other steps here) and offer `critique` after — the first snapshot makes the next polish measurable.
 - Run the detector on the files you're about to touch (findings get fixed or triaged as you go — `reference/triage.md`).
 
 ## 3. Triage order (in order — polish is a sequence, not a mood)

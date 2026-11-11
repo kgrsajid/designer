@@ -23,6 +23,7 @@ Then the grouped commands table (copy from SKILL.md — that table is the single
 
 ## Rules
 
+- **Vague-improve requests get an amplification verb before any fix-list pass.** "Make it better" + `polish`/`typeset` alone is invisible-by-construction change — the founder sees "all looks the same". Propose the visible delta first: `bolder` (`reference/bolder.md`), or `quieter`/`distill` where the diagnosis says so. Get the nod, then run the fix-list passes under it.
 - **2–3 picks.** Five options is a wall of options (we critique that pattern — don't build it).
 - **Never lead web-only verbs on native projects** (platform comes from PRODUCT.md/state).
 - If state says a run is degraded or the tooling is missing (`context.mjs` absent in early milestones), say so and route on what the user has told you instead.

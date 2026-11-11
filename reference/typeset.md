@@ -30,7 +30,7 @@ Every surface gets five roles, no more, each with exactly one face:
 | Display | the surface's one shout | largest step, committed weight, tight tracking (floor −0.04em) |
 | Heading | hierarchy and wayfinding | 1.25×+ steps apart (flat steps are the measured GLM tell) |
 | Body | reading | 65–75ch measure, line-height 1.5–1.7 |
-| Label | control/UI text | medium weight, sentence case, line-height ≥1.3 |
+| Label | control/UI text | medium weight, sentence case, line-height ≥1.3 (labels only — display is exempt, §3) |
 | Meta | timestamps, counts, provenance | smallest step, tinted neutral, never the star |
 
 If two roles share a size and weight, they are one role. Merge or split — don't blur.
@@ -39,6 +39,7 @@ If two roles share a size and weight, they are one role. Merge or split — don'
 
 - Body measure 65–75ch (craft-floor check 4). Auxiliary columns and sidebars may go 45–60ch — below 45 even short text feels chopped.
 - Line-height and size move together: display tighter (1.05–1.2), body looser (1.5–1.7), labels never below 1.3.
+- **Where the 1.3 floor ends.** The `tight-leading` detector rule flags any same-block `font-size` + `line-height` pair with a ratio under 1.3 — declared pairs only (no inheritance), and it has no role awareness, so a legitimate display block at 1.05–1.2 still gets flagged. Doctrine: display and heading roles take the range above and are exempt from the label floor; label, meta, and body roles hold ≥1.3 (body 1.5–1.7). The boundary is the role table in §2 — Label is control/UI text on functional selectors, at every size; the surface's one shout is display. A flagged display pair gets a narrow inline ignore naming the role (`tight-leading: display role`); never widen display leading to silence the rule.
 - **Dark surfaces need compensation.** Light-on-dark reads thinner and tighter: bump line-height a step, add ~0.01–0.02em tracking on small text, step weight up one notch. Same tokens as light mode, adjusted values.
 
 ## 4. Line-break care

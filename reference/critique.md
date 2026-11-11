@@ -7,7 +7,7 @@ A design-director review of a surface, with evidence and a verdict. Not a vibe c
 Two reviewers, **isolated contexts**, never the other's output until the verdict is written:
 
 - **A — the design-director.** Holistic judgment. **Must never see detector output first** — anchoring on mechanical findings makes a director into a proofreader. A gets the surface (code + rendered view) and the context files, nothing else.
-- **B — the evidence runner.** Runs `scripts/detect.mjs` on the files + the browser-tool rendered checklist (in-situ contrast on composited backgrounds, overflow at 390px **and** 1440px, touch-target measurement, occlusion, first-viewport composition). B produces findings, never opinions about taste.
+- **B — the evidence runner.** Runs `scripts/detect.mjs` on the files + the browser-tool rendered checklist (in-situ contrast on composited backgrounds — method below; overflow at 390px **and** 1440px; touch targets: 44px craft floor, 24px = WCAG 2.5.8 minimum — name both, hold 44; occlusion; first-viewport composition). B produces findings, never opinions about taste.
 
 **Synthesis only after A completes.** B's evidence may then confirm, quantify, or contradict A — in that order of politeness. Where A's judgment and B's evidence disagree, the report says so explicitly.
 
@@ -18,6 +18,17 @@ If only one context is available (user demands speed, no subagent spawning possi
 ```
 
 A degraded run is a legitimate run — a hidden one is not.
+
+## In-situ contrast — the measurement method
+
+Composited backgrounds (gradients, images, overlaps) defeat stylesheet math. Measure the rendered pixels:
+
+1. **Make the text transparent** — `color: transparent` on the node, so only the background paints where glyphs sit.
+2. **Screenshot, sample, restore.** Sample the pixel under a worst-case glyph (not the block average) — that is the background luminance. Contrast = that vs the text color's own luminance. Restore the color after.
+
+Two traps, both render-time:
+- **Scroll-reveal elements sit at `opacity: 0` until scrolled into view.** Scroll them fully into the viewport (or freeze the reveal) before sampling — an `opacity: 0` sample is a black background, and the ratio is fiction.
+- **Auto-cycling UI** (`.is-active` rotators, autoplay carousels) must be pinned first: click-to-pin or pause-and-freeze, then sample. A mid-cycle screenshot samples whichever slide happened to be up — re-measure on the slide you're judging.
 
 ## A's sequence (in order)
 
@@ -42,6 +53,8 @@ Heuristic keys (fixed — the snapshot schema depends on them):
 8. **2–4 pointed questions LAST.** A run without questions is incomplete. If truly none: `Questions skipped: <reason>`.
 
 Tone law: no "consider exploring…", no hedging verbs. If everything is important, nothing is. Three priority issues beat twelve notes.
+
+Numbers law: every numeric floor quoted in a report or synthesis — type sizes, contrast ratios, target sizes, thresholds — is copied from `data/rules.json` at write time (`node scripts/detect.mjs --list-rules`), never from memory, never softened. "≥11px functional" against a registry that blocks at 12px is a wrong number, not a style choice. Prose and registry disagree → the registry wins; fix the prose.
 
 ## Persistence — the full trend system
 
@@ -74,9 +87,10 @@ A report that exists only in chat produced nothing durable; a report that exists
 ```
 
 Rules of the snapshot: `n/a` = the string `"n/a"` (max renormalizes to 40 − 4×count). The fingerprint covers the exact bytes reviewed — a run on changed bytes is a new run. `priorities[].status` starts `open`; closing happens in a later run's snapshot (re-list the item with `closed`).
-3. **Trend is rendered by `node scripts/context.mjs --trend`** (also embedded in `--doctor`): score trajectory, per-heuristic deltas, recurring findings (normalized `what` across ≥2 snapshots), and **REGRESSION flags** — a dropped score or a closed finding reopening gets named out loud. Never re-derive trend math in prose; run the tool and quote it.
-4. **Backlog discipline.** Open priorities carry forward across runs until closed or explicitly killed with a reason. "We fixed it" closes it in the next snapshot; silence does not.
-5. **Recommended verb sequence** — the roadmap out. `polish` almost always comes last; polish first is polishing broken bones.
+3. **B's evidence persists beside the snapshot, not inside it.** Detector runs, measured contrast ratios, and touch-target counts don't fit the scored schema. Path: write B's raw findings to `.designer/critique/<snapshot-name>.evidence.md` in the same run (trend tooling ignores non-`.json` files); the snapshot's `priorities[]` carries the distilled P-items. One run, two files, same name — the evidence file is the receipts, the snapshot is the ledger.
+4. **Trend is rendered by `node scripts/context.mjs --trend`** (also embedded in `--doctor`): score trajectory, per-heuristic deltas, recurring findings (normalized `what` across ≥2 snapshots), and **REGRESSION flags** — a dropped score or a closed finding reopening gets named out loud. Never re-derive trend math in prose; run the tool and quote it.
+5. **Backlog discipline.** Open priorities carry forward across runs until closed or explicitly killed with a reason. "We fixed it" closes it in the next snapshot; silence does not.
+6. **Recommended verb sequence** — the roadmap out. `polish` almost always comes last; polish first is polishing broken bones.
 
 ## What critique is not
 
